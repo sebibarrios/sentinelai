@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
 
 import { Pagination } from "@/components/pagination";
 import { AlertStatusBadge, SeverityBadge } from "@/components/severity";
@@ -27,11 +27,47 @@ import { capitalize, formatDateTime } from "@/lib/utils";
 const ALL = "all";
 const PAGE_SIZE = 25;
 
+function pick<T extends string>(value: string | null, allowed: readonly T[]): T | undefined {
+  return allowed.includes(value as T) ? (value as T) : undefined;
+}
+
+/**
+ * Filters can arrive in the URL (e.g. /alerts?severity=high from the dashboard).
+ * The view is keyed by the query string, so following a new link always starts from
+ * that link's filters, even though Next keeps visited pages mounted in the background.
+ */
 export default function AlertsPage() {
+  const params = useSearchParams();
+  const status = params.get("status");
+  return (
+    <AlertsView
+      key={params.toString()}
+      initial={{
+        severity: pick(params.get("severity"), SEVERITIES) ?? ALL,
+        status: status === "all" ? ALL : (pick(status, ALERT_STATUSES) ?? "open"),
+        rule: params.get("rule_id") ?? ALL,
+        srcIp: params.get("src_ip") ?? undefined,
+        uploadId: params.get("upload_id") ?? undefined,
+      }}
+    />
+  );
+}
+
+interface Initial {
+  severity: Severity | typeof ALL;
+  status: AlertStatus | typeof ALL;
+  rule: string;
+  srcIp?: string;
+  uploadId?: string;
+}
+
+function AlertsView({ initial }: { initial: Initial }) {
   const router = useRouter();
-  const [severity, setSeverity] = useState<Severity | typeof ALL>(ALL);
-  const [status, setStatus] = useState<AlertStatus | typeof ALL>("open");
-  const [rule, setRule] = useState<string>(ALL);
+  const [severity, setSeverity] = useState(initial.severity);
+  const [status, setStatus] = useState(initial.status);
+  const [rule, setRule] = useState<string>(initial.rule);
+  const [srcIp, setSrcIp] = useState(initial.srcIp);
+  const [uploadId, setUploadId] = useState(initial.uploadId);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const q = useDebounced(search.trim());
@@ -41,12 +77,15 @@ export default function AlertsPage() {
     severity: severity === ALL ? undefined : severity,
     status: status === ALL ? undefined : status,
     rule_id: rule === ALL ? undefined : rule,
+    src_ip: srcIp,
+    upload_id: uploadId,
     q: q || undefined,
     page,
     page_size: PAGE_SIZE,
   });
 
-  const filtered = severity !== ALL || status !== ALL || rule !== ALL || q !== "";
+  const filtered =
+    severity !== ALL || status !== ALL || rule !== ALL || q !== "" || !!srcIp || !!uploadId;
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
     setPage(1);
@@ -113,6 +152,18 @@ export default function AlertsPage() {
         </Select>
       </div>
 
+      {(srcIp || uploadId) && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Also filtered by</span>
+          {srcIp && (
+            <FilterChip label={`source ${srcIp}`} onClear={() => { setSrcIp(undefined); setPage(1); }} />
+          )}
+          {uploadId && (
+            <FilterChip label="one upload" onClear={() => { setUploadId(undefined); setPage(1); }} />
+          )}
+        </div>
+      )}
+
       <div className="rounded-lg border bg-panel">
         {error ? (
           <div className="p-4">
@@ -141,6 +192,8 @@ export default function AlertsPage() {
                     setSeverity(ALL);
                     setStatus(ALL);
                     setRule(ALL);
+                    setSrcIp(undefined);
+                    setUploadId(undefined);
                     setSearch("");
                     setPage(1);
                   }}
@@ -209,5 +262,21 @@ export default function AlertsPage() {
         {data && <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onPage={setPage} />}
       </div>
     </>
+  );
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border bg-secondary py-0.5 pl-3 pr-1">
+      {label}
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={`Remove filter: ${label}`}
+        className="rounded-full p-0.5 text-muted-foreground hover:bg-ink hover:text-foreground"
+      >
+        <X className="size-3.5" />
+      </button>
+    </span>
   );
 }

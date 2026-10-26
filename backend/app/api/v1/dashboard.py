@@ -41,6 +41,14 @@ class SourceCount(BaseModel):
     max_severity: Severity
 
 
+class EventStats(BaseModel):
+    failed_logins: int
+    successful_logins: int
+    denied_connections: int
+    allowed_connections: int
+    unique_source_ips: int
+
+
 class DashboardSummary(BaseModel):
     range: Range
     # Incidents
@@ -55,6 +63,7 @@ class DashboardSummary(BaseModel):
     open_alerts_by_severity: dict[str, int]
     alerts_in_range: int
     events_in_range: int
+    event_stats: EventStats
     alert_timeline: list[TimelinePoint]
     top_sources: list[SourceCount]
     recent_alerts: list[AlertOut]
@@ -94,14 +103,31 @@ def summary(
     alerts_in_range = (
         db.scalar(select(func.count()).select_from(Alert).where(Alert.first_seen >= since)) or 0
     )
-    events_in_range = (
-        db.scalar(
-            select(func.count())
-            .select_from(SecurityEvent)
+    # --- events: one grouped query gives totals and the login / connection breakdown ---
+    by_outcome = {
+        (category.value, outcome.value): n
+        for category, outcome, n in db.execute(
+            select(SecurityEvent.category, SecurityEvent.outcome, func.count())
             .where(SecurityEvent.occurred_at >= since)
+            .group_by(SecurityEvent.category, SecurityEvent.outcome)
+        )
+    }
+    events_in_range = sum(by_outcome.values())
+    unique_ips = (
+        db.scalar(
+            select(func.count(func.distinct(SecurityEvent.src_ip))).where(
+                SecurityEvent.occurred_at >= since
+            )
         )
         or 0
     )
+    event_stats = {
+        "failed_logins": by_outcome.get(("auth", "failure"), 0),
+        "successful_logins": by_outcome.get(("auth", "success"), 0),
+        "denied_connections": by_outcome.get(("network", "denied"), 0),
+        "allowed_connections": by_outcome.get(("network", "allowed"), 0),
+        "unique_source_ips": unique_ips,
+    }
 
     # Timeline: alerts per bucket per severity, zero-filled so the chart has no gaps.
     bucket_col = func.date_trunc(unit, Alert.first_seen).label("bucket")
@@ -154,6 +180,7 @@ def summary(
         "open_alerts_by_severity": alert_by_sev,
         "alerts_in_range": alerts_in_range,
         "events_in_range": events_in_range,
+        "event_stats": event_stats,
         "alert_timeline": list(buckets.values()),
         "top_sources": [
             {"ip": ip, "alerts": n, "max_severity": sev_by_rank[worst]} for ip, n, worst in top_rows

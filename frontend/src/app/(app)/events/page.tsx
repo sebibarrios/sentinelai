@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { EventsTable } from "@/components/evidence-table";
 import { Pagination } from "@/components/pagination";
@@ -15,11 +16,33 @@ const ALL = "all";
 const PAGE_SIZE = 50;
 const IP_PATTERN = /^[0-9a-fA-F.:]+$/;
 
+/** Filters can come from the URL (dashboard links); keyed so each link starts fresh. */
 export default function EventsPage() {
-  const [category, setCategory] = useState<string>(ALL);
-  const [outcome, setOutcome] = useState<string>(ALL);
-  const [username, setUsername] = useState("");
-  const [ip, setIp] = useState("");
+  const params = useSearchParams();
+  return (
+    <EventsView
+      key={params.toString()}
+      initial={{
+        category: ["auth", "network"].includes(params.get("category") ?? "") ? params.get("category")! : ALL,
+        outcome: ["success", "failure", "allowed", "denied"].includes(params.get("outcome") ?? "")
+          ? params.get("outcome")!
+          : ALL,
+        username: params.get("username") ?? "",
+        ip: params.get("src_ip") ?? "",
+      }}
+    />
+  );
+}
+
+function EventsView({
+  initial,
+}: {
+  initial: { category: string; outcome: string; username: string; ip: string };
+}) {
+  const [category, setCategory] = useState<string>(initial.category);
+  const [outcome, setOutcome] = useState<string>(initial.outcome);
+  const [username, setUsername] = useState(initial.username);
+  const [ip, setIp] = useState(initial.ip);
   const [page, setPage] = useState(1);
   const user = useDebounced(username.trim());
   const ipQuery = useDebounced(ip.trim());

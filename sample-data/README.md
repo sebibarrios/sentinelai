@@ -8,7 +8,7 @@ Synthetic security logs for trying SentinelAI. Everything is invented: IPs are i
 | `auth_network_24h.ndjson` | NDJSON | The same scenarios with a different random seed, one JSON object per line |
 | `with_errors.csv` | CSV | Six rows, four deliberately invalid, to show per-row validation |
 
-Each file with planted scenarios should produce eight alerts, one per detection rule:
+On an empty database, each file with planted scenarios produces eight alerts, one per detection rule:
 
 - Brute force against the `admin` account from 203.0.113.45 (AUTH-001)
 - A password spray from 198.51.100.23 (AUTH-002) that ends in a successful `jdoe` login (AUTH-003) from an IP `jdoe` hasn't used before (AUTH-005)
@@ -16,7 +16,7 @@ Each file with planted scenarios should produce eight alerts, one per detection 
 - An off-hours login by `svc_backup` (AUTH-004)
 - Traffic from blocklisted IP 203.0.113.66 (IOC-001)
 
-Both files plant the same scenarios at the same times (only the background noise differs), so whichever you upload second creates no new alerts: alerts are deduplicated across uploads. They're dated 2026-10-20, so use the 30-day dashboard range, or regenerate them:
+Alerts are deduplicated across uploads. Both files plant the same scenarios at the same times (only the background noise differs), so whichever you upload second creates no new alerts. The seed script's demo log also contains jdoe's login from 198.51.100.23, and "new source IP" counts a user's new address only once, so on a seeded database a sample file produces seven new alerts. They're dated 2026-10-20, so use the 30-day dashboard range, or regenerate them:
 
 ```bash
 cd backend && python -m scripts.generate_sample

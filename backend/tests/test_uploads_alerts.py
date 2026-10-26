@@ -190,3 +190,45 @@ def test_rules_catalog(analyst_client):
         "description": "Repeated failed logins for one account from one IP",
         "severity": "high",
     }
+
+
+@pytest.mark.parametrize("range_", ["7d", "30d"])
+def test_daily_timeline_counts_every_alert(analyst_client, uploaded, range_):
+    """Day buckets depend on the DB session time zone; all 8 alerts must land in a bucket."""
+    s = analyst_client.get(f"{API}/dashboard/summary", params={"range": range_}).json()
+    total = sum(p["low"] + p["medium"] + p["high"] + p["critical"] for p in s["alert_timeline"])
+    assert total == 8
+    assert all(p["bucket"].endswith(("T00:00:00Z", "T00:00:00+00:00")) for p in s["alert_timeline"])
+
+
+def test_dashboard_event_statistics_match_the_data(analyst_client, uploaded):
+    rows = generate(seed=7, end=END).rows
+
+    def count(category, outcome):
+        return sum(r["category"] == category and r["outcome"] == outcome for r in rows)
+
+    expect = {
+        "failed_logins": count("auth", "failure"),
+        "successful_logins": count("auth", "success"),
+        "denied_connections": count("network", "denied"),
+        "allowed_connections": count("network", "allowed"),
+        "unique_source_ips": len({r["src_ip"] for r in rows}),
+    }
+    s = analyst_client.get(f"{API}/dashboard/summary", params={"range": "30d"}).json()
+    assert s["event_stats"] == expect
+    assert s["events_in_range"] == len(rows)
+
+
+def test_failure_mid_pipeline_leaves_no_partial_data(analyst_client, monkeypatch, db):
+    """Events are bulk-copied before detection runs; a later crash must roll them back."""
+    from app.models import LogUpload, SecurityEvent
+    from app.services import uploads as uploads_svc
+
+    def boom(_events):
+        raise RuntimeError("detection crashed")
+
+    monkeypatch.setattr(uploads_svc, "run_rules", boom)
+    with pytest.raises(RuntimeError):  # TestClient re-raises server errors
+        upload(analyst_client, sample_csv(seed=3))
+    assert db.query(SecurityEvent).count() == 0
+    assert db.query(LogUpload).count() == 0

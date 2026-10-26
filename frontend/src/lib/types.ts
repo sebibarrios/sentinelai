@@ -195,7 +195,16 @@ export interface TimelinePoint extends Record<Severity, number> {
   bucket: string;
 }
 
+export interface EventStats {
+  failed_logins: number;
+  successful_logins: number;
+  denied_connections: number;
+  allowed_connections: number;
+  unique_source_ips: number;
+}
+
 export interface DashboardAlerts {
+  event_stats: EventStats;
   open_alerts: number;
   open_alerts_by_severity: Record<Severity, number>;
   alerts_in_range: number;

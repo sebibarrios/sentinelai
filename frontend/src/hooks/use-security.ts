@@ -23,6 +23,7 @@ export interface AlertFilters {
   severity?: Severity;
   status?: AlertStatus;
   rule_id?: string;
+  src_ip?: string;
   q?: string;
   upload_id?: string;
   incident_id?: string;

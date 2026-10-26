@@ -52,5 +52,5 @@ Created by the seed script (local password `SentinelDemo2026`, or `SEED_PASSWORD
 
 ```bash
 cd backend && pytest --cov=app        # needs a sentinelai_test database
-cd frontend && npm run lint && npx tsc --noEmit && npm run build
+cd frontend && npm run lint && npm run typecheck && npm run build
 ```

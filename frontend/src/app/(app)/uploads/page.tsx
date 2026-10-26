@@ -94,7 +94,10 @@ export default function UploadsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     {u.alerts_created > 0 ? (
-                      <Link href={`/alerts`} className="font-medium text-primary hover:underline">
+                      <Link
+                        href={`/alerts?upload_id=${u.id}&status=all`}
+                        className="font-medium text-primary hover:underline"
+                      >
                         {u.alerts_created}
                       </Link>
                     ) : (
@@ -258,7 +261,7 @@ function UploadResult({ upload }: { upload: Upload }) {
       )}
       {upload.alerts_created > 0 && (
         <Button asChild size="sm" className="mt-4">
-          <Link href="/alerts">Review alerts</Link>
+          <Link href={`/alerts?upload_id=${upload.id}&status=all`}>Review these alerts</Link>
         </Button>
       )}
     </div>

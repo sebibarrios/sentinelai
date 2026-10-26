@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SEVERITY_COLOR } from "@/components/severity";
 import { capitalize } from "@/lib/utils";
 import { SEVERITIES, type Severity } from "@/lib/types";
@@ -6,7 +8,14 @@ import { SEVERITIES, type Severity } from "@/lib/types";
  * The dashboard's signature element: open work, split by severity, as one wide bar.
  * Segment width is proportional to count, so the mix is readable at a glance.
  */
-export function ThreatBar({ counts }: { counts: Record<Severity, number> }) {
+export function ThreatBar({
+  counts,
+  hrefFor,
+}: {
+  counts: Record<Severity, number>;
+  /** When given, each severity in the legend links to a filtered list. */
+  hrefFor?: (severity: Severity) => string;
+}) {
   const total = SEVERITIES.reduce((sum, s) => sum + counts[s], 0);
 
   return (
@@ -37,7 +46,13 @@ export function ThreatBar({ counts }: { counts: Record<Severity, number> }) {
           <div key={s} className="flex items-baseline gap-2">
             <dt className="flex items-center gap-2 text-muted-foreground">
               <span aria-hidden className="size-2 rounded-full" style={{ background: SEVERITY_COLOR[s] }} />
-              {capitalize(s)}
+              {hrefFor ? (
+                <Link href={hrefFor(s)} className="hover:text-foreground hover:underline">
+                  {capitalize(s)}
+                </Link>
+              ) : (
+                capitalize(s)
+              )}
             </dt>
             <dd className="text-lg font-semibold">{counts[s]}</dd>
           </div>

@@ -64,10 +64,43 @@ export default function DashboardPage() {
               </h2>
               <p className="text-sm text-muted-foreground">
                 Last {rangeLabel}: {data.events_in_range.toLocaleString()} events analyzed,{" "}
-                {data.alerts_in_range} alerts, {data.incidents_in_range} incidents opened
+                {data.alerts_in_range} alerts raised, {data.incidents_in_range} incidents opened
               </p>
             </div>
-            <ThreatBar counts={data.open_alerts_by_severity} />
+            <ThreatBar
+              counts={data.open_alerts_by_severity}
+              hrefFor={(sev) => `/alerts?severity=${sev}&status=open`}
+            />
+          </section>
+
+          <section className="rounded-lg border bg-panel p-6" aria-labelledby="event-activity">
+            <h2 id="event-activity" className="mb-4 font-medium">
+              Event activity <span className="font-normal text-muted-foreground">last {rangeLabel}</span>
+            </h2>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Failed logins", value: data.event_stats.failed_logins, href: "/events?category=auth&outcome=failure", warn: true },
+                { label: "Successful logins", value: data.event_stats.successful_logins, href: "/events?category=auth&outcome=success" },
+                { label: "Blocked connections", value: data.event_stats.denied_connections, href: "/events?category=network&outcome=denied", warn: true },
+                { label: "Allowed connections", value: data.event_stats.allowed_connections, href: "/events?category=network&outcome=allowed" },
+                { label: "Unique source IPs", value: data.event_stats.unique_source_ips },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <dt className="text-sm text-muted-foreground">
+                    {stat.href ? (
+                      <Link href={stat.href} className="hover:text-foreground hover:underline">
+                        {stat.label}
+                      </Link>
+                    ) : (
+                      stat.label
+                    )}
+                  </dt>
+                  <dd className={cn("text-lg font-semibold", stat.warn && stat.value > 0 && "text-sev-high")}>
+                    {stat.value.toLocaleString()}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </section>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -94,7 +127,12 @@ export default function DashboardPage() {
                     return (
                       <li key={s.ip} className="border-t py-3 first:border-t-0 first:pt-0">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="truncate font-mono text-sm">{s.ip}</span>
+                          <Link
+                            href={`/alerts?src_ip=${encodeURIComponent(s.ip)}&status=all`}
+                            className="truncate font-mono text-sm hover:text-primary hover:underline"
+                          >
+                            {s.ip}
+                          </Link>
                           <SeverityBadge severity={s.max_severity} />
                         </div>
                         <div className="mt-2 flex items-center gap-3">

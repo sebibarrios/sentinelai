@@ -126,7 +126,7 @@ Indexes: `(occurred_at)`, `(src_ip, occurred_at)`, `(username, occurred_at)`, `(
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
-| reference | text unique | human ID like `INC-0042` |
+| number | integer identity, unique | shown as a human reference like `INC-0042` (computed, not stored) |
 | title, description | text | |
 | severity | enum (same as alerts) | |
 | status | enum `open`, `investigating`, `contained`, `resolved`, `closed` | |
@@ -178,8 +178,9 @@ All sample data uses documentation IP ranges (`192.0.2.0/24`, `198.51.100.0/24`,
 ### Upload limits
 
 - Max file size 10 MB, max 100,000 rows (configurable).
-- Format detected by parsing content; the extension must also be `.csv`, `.json`, or `.ndjson`.
-- Files are parsed in memory from the request stream and never written to disk or served back.
+- The extension must be `.csv`, `.json`, `.ndjson`, or `.jsonl` and must agree with the content (a `.csv` that contains JSON is refused); binary files are refused.
+- An identical file (same SHA-256) can't be uploaded twice.
+- Files are read with a hard size cap, parsed, and discarded; only the normalized events (with each original row in `raw`) are kept. Uploaded files are never stored or served back.
 - Per-row validation with Pydantic; the upload succeeds if at least one row parses, and reports rejected rows with reasons.
 
 ## 4. Detection rules
@@ -221,14 +222,16 @@ Base path `/api/v1`. JSON in and out. OpenAPI docs served at `/api/docs` (disabl
 | GET | `/auth/me` | any | current user |
 | PATCH | `/users/me` | any | update name |
 | POST | `/users/me/password` | any | change password (requires current) |
+| GET | `/users/assignable` | analyst+ | active analysts and admins, for the assignee picker |
 | GET | `/users` | admin | list users |
 | PATCH | `/users/{id}` | admin | change role / deactivate |
-| GET | `/dashboard/summary?range=24h\|7d\|30d` | viewer+ | counts, severity breakdown, timeline, top IPs |
+| GET | `/dashboard/summary?range=24h\|7d\|30d` | viewer+ | open alerts by severity, event statistics, alert timeline, top IPs, incident status counts |
 | POST | `/uploads` | analyst+ | multipart upload; parses and runs detection |
 | GET | `/uploads` | viewer+ | list uploads |
 | GET | `/uploads/{id}` | viewer+ | upload detail and rejection samples |
 | GET | `/events` | viewer+ | filter: `category, outcome, username, src_ip, upload_id, from, to` |
-| GET | `/alerts` | viewer+ | filter: `severity, status, rule_id, src_ip, q, from, to` |
+| GET | `/alerts/rules` | viewer+ | detection rule catalog |
+| GET | `/alerts` | viewer+ | filter: `severity, status, rule_id, src_ip, q, upload_id, incident_id, from, to` |
 | GET | `/alerts/{id}` | viewer+ | alert + evidence events + latest AI analysis |
 | PATCH | `/alerts/{id}` | analyst+ | change status |
 | POST | `/alerts/{id}/promote` | analyst+ | create incident from alert(s) |
@@ -240,6 +243,8 @@ Base path `/api/v1`. JSON in and out. OpenAPI docs served at `/api/docs` (disabl
 | GET | `/incidents/{id}/history` | viewer+ | audit trail |
 | POST | `/ai/alerts/{id}/explain` | analyst+ | explanation + investigation steps (cached) |
 | POST | `/ai/incidents/{id}/report` | analyst+ | structured incident report (cached) |
+| GET | `/ai/incidents/{id}/report` | viewer+ | latest stored report, if any |
+| GET | `/ai/status` | viewer+ | whether AI is configured, and the model name (never the key) |
 
 ### Role matrix
 
@@ -267,7 +272,9 @@ Authorization is enforced in the backend with a `require_role(...)` dependency o
 }
 ```
 
-The model is called with structured output against this schema and the result is re-validated with Pydantic before storage. The prompt includes only the alert's facts and up to 50 evidence events, never other users' data or secrets. Rate limit: 20 AI requests per user per hour.
+The model is called with structured output against this schema and the result is re-validated with Pydantic before storage. The prompt includes only the alert's facts and up to 50 evidence events, never other users' data or secrets. Rate limit: 20 new AI requests per user per hour (cached results don't count).
+
+Log fields are attacker-controlled, so they reach the model only inside one `<data>` block in which `<` and `>` are escaped; a log value can't close the block and pose as instructions. Incident-report indicators that don't appear verbatim in the input data are removed, and the count of removed items is shown to the analyst.
 
 ## 6. Folder structure
 
@@ -289,7 +296,7 @@ sentinelai/
 │   │   └── ai/                  # client wrapper, prompts, output schemas
 │   ├── alembic/                 # migrations
 │   ├── tests/                   # pytest: unit (rules, parsers) + API (httpx)
-│   ├── scripts/seed.py          # demo users + sample upload
+│   ├── scripts/                 # seed.py (demo users, incidents, synthetic upload), generate_sample.py
 │   ├── pyproject.toml
 │   └── Dockerfile
 ├── frontend/
@@ -300,12 +307,12 @@ sentinelai/
 │   │   ├── components/          # ui/ (shadcn), layout/, charts/, tables/, forms/
 │   │   ├── lib/                 # api client, auth helpers, formatters
 │   │   └── hooks/               # TanStack Query hooks per resource
-│   ├── e2e/                     # Playwright tests
+│   ├── e2e/                     # Playwright tests (Phase 5)
 │   ├── next.config.ts           # /api rewrite to backend
 │   └── Dockerfile
-├── sample-data/                 # synthetic CSV/JSON logs + generator script
+├── sample-data/                 # synthetic CSV/NDJSON logs (generated by backend/scripts)
 ├── docs/                        # this file, API notes, screenshots
-├── .github/workflows/           # ci.yml (lint, type-check, tests, build)
+├── .github/workflows/           # ci.yml: lint, type-check, tests, build (Phase 5)
 ├── docker-compose.yml           # postgres + backend + frontend
 └── .env.example
 ```

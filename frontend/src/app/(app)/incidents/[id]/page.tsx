@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
+import { EditIncidentDialog } from "@/components/incidents/edit-incident-dialog";
 import { IncidentAiReport, LinkedAlerts } from "@/components/incidents/incident-intel";
 import { SeverityBadge, StatusBadge } from "@/components/severity";
 import { ErrorState } from "@/components/states";
@@ -70,10 +71,13 @@ function IncidentView({ incident }: { incident: IncidentDetail }) {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="flex min-w-0 flex-col gap-6">
         <header>
-          <p className="text-sm text-muted-foreground">
-            {incident.reference}, opened by {incident.created_by.full_name}{" "}
-            {formatRelative(incident.created_at)}
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              {incident.reference}, opened by {incident.created_by.full_name}{" "}
+              {formatRelative(incident.created_at)}
+            </p>
+            {canEdit && <EditIncidentDialog incident={incident} />}
+          </div>
           <h1 className="mt-1 text-xl font-semibold tracking-tight">{incident.title}</h1>
           <div className="mt-3 flex items-center gap-3">
             <SeverityBadge severity={incident.severity} />
