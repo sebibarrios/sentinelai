@@ -66,7 +66,31 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   return data as T;
 }
 
+/** Multipart upload; the browser sets the Content-Type boundary itself. */
+async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(buildUrl(path), {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-Requested-With": "SentinelAI" },
+    body: form,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = (data as { error?: { code: string; message: string; details?: [] } })?.error;
+    throw new ApiError(
+      res.status,
+      err?.code ?? "network_error",
+      err?.message ?? (res.status === 413 ? "The file is too large." : "Upload failed."),
+      err?.details,
+    );
+  }
+  return data as T;
+}
+
 export const api = {
+  upload,
   get: <T>(path: string, query?: Query) => request<T>("GET", path, undefined, query),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),

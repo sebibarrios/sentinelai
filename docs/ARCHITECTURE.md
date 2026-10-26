@@ -195,9 +195,9 @@ Each rule is a pure function: `events → list[AlertCandidate]`. Thresholds live
 | AUTH-005 | New source IP | successful login from an IP not seen for that user earlier in the dataset | medium |
 | NET-001 | Port scan | one source hits ≥ 15 distinct ports on one destination within 5 min | high |
 | NET-002 | Denied connection burst | ≥ 20 denied connections from one source within 5 min | medium |
-| IOC-001 | Known-bad IP | source IP is on the bundled blocklist (synthetic) | high |
+| IOC-001 | Known-bad IP | source IP is on the bundled blocklist (synthetic); one alert per IP per UTC day | high |
 
-Window logic uses a sliding window over events sorted by time, grouped by key. That keeps each rule O(n log n) and easy to unit test with hand-built event lists.
+Window logic uses a sliding window over events sorted by time, grouped by key. That keeps each rule O(n log n) and easy to unit test with hand-built event lists. Overlapping dense windows merge, so one sustained attack produces one alert. Alerts are deduplicated on `(rule_id, dedupe_key)`, so re-uploading overlapping data never duplicates them.
 
 ## 5. API
 

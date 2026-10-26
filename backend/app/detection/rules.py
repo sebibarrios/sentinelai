@@ -187,9 +187,11 @@ def denied_burst(events: Sequence[Event]) -> list[AlertCandidate]:
 
 
 def known_bad_ip(events: Sequence[Event]) -> list[AlertCandidate]:
+    """One alert per blocklisted IP per UTC day, so a return visit raises a fresh alert."""
     alerts = []
-    for ip, group in group_by(
-        (e for e in events if e.src_ip in KNOWN_BAD_IPS), lambda e: e.src_ip
+    for (ip, day), group in group_by(
+        (e for e in events if e.src_ip in KNOWN_BAD_IPS),
+        lambda e: (e.src_ip, e.occurred_at.date()),
     ).items():
         alerts.append(
             AlertCandidate(
@@ -199,7 +201,7 @@ def known_bad_ip(events: Sequence[Event]) -> list[AlertCandidate]:
                 events=group,
                 details={"events": len(group), "listed_reason": KNOWN_BAD_IPS[ip]},
                 src_ip=ip,
-                dedupe_key=ip,
+                dedupe_key=f"{ip}|{day.isoformat()}",
             )
         )
     return alerts

@@ -1,5 +1,5 @@
 import { cn, capitalize } from "@/lib/utils";
-import type { IncidentStatus, Severity } from "@/lib/types";
+import type { AlertStatus, IncidentStatus, Severity } from "@/lib/types";
 
 /*
   Severity is the product's color system. The dot + label pairing means color is
@@ -48,6 +48,26 @@ export function StatusBadge({ status }: { status: IncidentStatus }) {
       )}
     >
       {capitalize(status)}
+    </span>
+  );
+}
+
+const ALERT_STATUS_STYLE: Record<AlertStatus, string> = {
+  open: "border-foreground/40 text-foreground",
+  acknowledged: "border-primary/60 text-primary",
+  dismissed: "border-border text-muted-foreground",
+  escalated: "border-sev-high/50 text-sev-high",
+};
+
+export function AlertStatusBadge({ status }: { status: AlertStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+        ALERT_STATUS_STYLE[status],
+      )}
+    >
+      {status === "escalated" ? "Escalated to incident" : capitalize(status)}
     </span>
   );
 }

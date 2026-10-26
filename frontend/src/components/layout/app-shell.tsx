@@ -5,11 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import {
+  FileUp,
   FolderKanban,
   LayoutDashboard,
+  List,
   LogOut,
   Menu,
   Settings,
+  Siren,
   Users,
   X,
   type LucideIcon,
@@ -39,7 +42,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/alerts", label: "Alerts", icon: Siren },
   { href: "/incidents", label: "Incidents", icon: FolderKanban },
+  { href: "/events", label: "Events", icon: List },
+  { href: "/uploads", label: "Uploads", icon: FileUp },
 ];
 
 const NAV_FOOTER: NavItem[] = [

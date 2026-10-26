@@ -159,6 +159,9 @@ def test_status_change_and_promote_to_incident(analyst_client, uploaded):
     after = analyst_client.get(f"{API}/alerts/{alert['id']}").json()
     assert after["status"] == "escalated" and after["incident_id"] == incident_id
 
+    linked = analyst_client.get(f"{API}/alerts", params={"incident_id": incident_id}).json()
+    assert [a["id"] for a in linked["items"]] == [alert["id"]]
+
     assert analyst_client.post(f"{API}/alerts/{alert['id']}/promote").status_code == 409
     r = analyst_client.patch(f"{API}/alerts/{alert['id']}", json={"status": "dismissed"})
     assert r.status_code == 400  # managed through the incident now

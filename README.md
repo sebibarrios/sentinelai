@@ -2,7 +2,7 @@
 
 AI-powered security operations platform: upload security logs, detect threats with deterministic rules, manage incidents, and get AI-generated explanations that are clearly separated from verified findings.
 
-**Status:** in active development. Incident management, authentication and role-based access are working; log analysis and AI features are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
+**Status:** in active development. Log upload, eight detection rules, alerts, incident management, the AI analyst, and role-based access are working; security hardening, CI/CD and deployment are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
 
 **Stack:** Next.js · React · TypeScript · Tailwind CSS · shadcn/ui · FastAPI · PostgreSQL · SQLAlchemy · Alembic · OpenAI API · Docker · Pytest · Playwright · GitHub Actions
 
@@ -15,7 +15,9 @@ docker compose up --build
 docker compose exec backend python -m scripts.seed
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. The seed script also loads a synthetic 24-hour log, so the dashboard has alerts to explore. More sample files are in [`sample-data/`](sample-data/).
+
+AI features need `OPENAI_API_KEY` set for the backend (for example in a `.env` file next to `docker-compose.yml`). Without it, everything else works and the AI panels say AI isn't configured.
 
 ### Without Docker
 

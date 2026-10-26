@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
+import { IncidentAiReport, LinkedAlerts } from "@/components/incidents/incident-intel";
 import { SeverityBadge, StatusBadge } from "@/components/severity";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,8 @@ function IncidentView({ incident }: { incident: IncidentDetail }) {
           </p>
         </section>
 
+        <LinkedAlerts incidentId={incident.id} />
+        <IncidentAiReport incidentId={incident.id} canEdit={canEdit} />
         <Notes incident={incident} canEdit={canEdit} />
       </div>
 

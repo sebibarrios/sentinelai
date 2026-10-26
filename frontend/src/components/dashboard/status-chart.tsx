@@ -40,7 +40,13 @@ export function StatusChart({ counts }: { counts: Record<IncidentStatus, number>
             labelStyle={{ color: "var(--fg)" }}
             itemStyle={{ color: "var(--fg-muted)" }}
           />
-          <Bar dataKey="count" name="Incidents" radius={[0, 4, 4, 0]} barSize={14}>
+          <Bar
+            dataKey="count"
+            name="Incidents"
+            radius={[0, 4, 4, 0]}
+            barSize={14}
+            isAnimationActive={false}
+          >
             {data.map((d) => (
               <Cell key={d.key} fill={STATUS_FILL[d.key]} />
             ))}

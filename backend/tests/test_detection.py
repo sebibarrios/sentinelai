@@ -133,9 +133,16 @@ def test_denied_burst():
     assert rules.denied_burst([net(i, "192.0.2.7", "10.0.0.5", 22) for i in range(19)]) == []
 
 
-def test_known_bad_ip():
+def test_known_bad_ip_alerts_once_per_day():
     [alert] = rules.known_bad_ip([net(0, "203.0.113.66", "10.0.0.5", 443, "allowed")])
     assert "Synthetic feed" in alert.details["listed_reason"]
+    same_day = [net(i * 600, "203.0.113.66", "10.0.0.5", 443, "allowed") for i in range(3)]
+    assert len(rules.known_bad_ip(same_day)) == 1
+    two_days = [
+        net(0, "203.0.113.66", "10.0.0.5", 443),
+        net(86400, "203.0.113.66", "10.0.0.5", 443),
+    ]
+    assert len(rules.known_bad_ip(two_days)) == 2
 
 
 # --- Engine over realistic data -----------------------------------------------------

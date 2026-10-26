@@ -35,6 +35,7 @@ def list_alerts(
     src_ip: str | None = None,
     q: str | None = None,
     upload_id: uuid.UUID | None = None,
+    incident_id: uuid.UUID | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
 ) -> tuple[list[Alert], int]:
@@ -49,6 +50,8 @@ def list_alerts(
         stmt = stmt.where(Alert.src_ip == src_ip)
     if upload_id:
         stmt = stmt.where(Alert.upload_id == upload_id)
+    if incident_id:
+        stmt = stmt.where(Alert.incident_id == incident_id)
     if since:
         stmt = stmt.where(Alert.last_seen >= since)
     if until:
@@ -117,7 +120,9 @@ def _describe(alert: Alert) -> str:
     if alert.username:
         lines.append(f"- Account: {alert.username}")
     for key, value in alert.details.items():
-        lines.append(f"- {key.replace('_', ' ').capitalize()}: {value}")
+        label = key.replace("_", " ").capitalize().replace(" ip", " IP").replace("Ip", "IP")
+        shown = ", ".join(map(str, value)) if isinstance(value, list) else value
+        lines.append(f"- {label}: {shown}")
     return "\n".join(lines)
 
 

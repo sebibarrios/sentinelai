@@ -39,6 +39,7 @@ def list_alerts(
     src_ip: IPvAnyAddress | None = None,
     q: str | None = Query(None, max_length=100),
     upload_id: uuid.UUID | None = None,
+    incident_id: uuid.UUID | None = None,
     since: datetime | None = Query(None, alias="from"),
     until: datetime | None = Query(None, alias="to"),
     page: int = Query(1, ge=1),
@@ -55,6 +56,7 @@ def list_alerts(
         src_ip=str(src_ip) if src_ip else None,
         q=q,
         upload_id=upload_id,
+        incident_id=incident_id,
         since=since,
         until=until,
     )
