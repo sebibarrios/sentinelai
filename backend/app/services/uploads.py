@@ -5,9 +5,10 @@ leaves no half-imported data behind.
 """
 
 import hashlib
+import json
 import time
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -16,11 +17,67 @@ from app.db.base import utcnow
 from app.detection.base import Event
 from app.detection.engine import run_rules
 from app.ingest.parser import ParseError, parse_log
-from app.models import Alert, AlertEvent, LogUpload, SecurityEvent, User
+from app.models import Alert, AlertEvent, LogUpload, User
 from app.models.enums import UploadStatus
 
 MAX_EVIDENCE_PER_ALERT = 200
-INSERT_BATCH = 2_000
+
+
+_COPY_COLUMNS = (
+    "id",
+    "upload_id",
+    "occurred_at",
+    "category",
+    "action",
+    "outcome",
+    "username",
+    "src_ip",
+    "dst_ip",
+    "dst_port",
+    "protocol",
+    "user_agent",
+    "country",
+    "raw",
+)
+
+
+def _copy_events(db: Session, upload_id, rows) -> list[int]:
+    if not rows:
+        return []
+    ids = list(
+        db.execute(
+            text(
+                "SELECT nextval(pg_get_serial_sequence('security_events', 'id')) "
+                "FROM generate_series(1, :n)"
+            ),
+            {"n": len(rows)},
+        ).scalars()
+    )
+    # Same transaction as the ORM session, so a later failure rolls this back too.
+    conn = db.connection().connection.driver_connection
+    columns = ", ".join(_COPY_COLUMNS)
+    with conn.cursor() as cur, cur.copy(f"COPY security_events ({columns}) FROM STDIN") as copy:
+        for event_id, r in zip(ids, rows, strict=True):
+            e = r.event
+            copy.write_row(
+                (
+                    event_id,
+                    upload_id,
+                    e.timestamp,
+                    e.category,
+                    e.action,
+                    e.outcome,
+                    e.username,
+                    e.src_ip,
+                    e.dst_ip,
+                    e.dst_port,
+                    e.protocol,
+                    e.user_agent,
+                    e.country,
+                    json.dumps(r.raw, default=str),
+                )
+            )
+    return ids
 
 
 class UploadRejected(AppError):
@@ -73,32 +130,10 @@ def ingest_upload(
     db.add(upload)
     db.flush()
 
-    # 1) Bulk-insert events, keeping each row's database id in upload order.
-    event_ids: list[int] = []
-    rows = [
-        {
-            "upload_id": upload.id,
-            "occurred_at": r.event.timestamp,
-            "category": r.event.category,
-            "action": r.event.action,
-            "outcome": r.event.outcome,
-            "username": r.event.username,
-            "src_ip": r.event.src_ip,
-            "dst_ip": r.event.dst_ip,
-            "dst_port": r.event.dst_port,
-            "protocol": r.event.protocol,
-            "user_agent": r.event.user_agent,
-            "country": r.event.country,
-            "raw": r.raw,
-        }
-        for r in parsed.rows
-    ]
-    for i in range(0, len(rows), INSERT_BATCH):
-        batch = rows[i : i + INSERT_BATCH]
-        result = db.execute(
-            insert(SecurityEvent).returning(SecurityEvent.id, sort_by_parameter_order=True), batch
-        )
-        event_ids.extend(result.scalars().all())
+    # 1) Bulk-load events with PostgreSQL COPY (about 10x faster than INSERT for
+    #    large files). Ids are reserved from the table's own sequence first, so each
+    #    parsed row's database id is known and alerts can link to exact evidence.
+    event_ids = _copy_events(db, upload.id, parsed.rows)
 
     # 2) Detection runs on lightweight Event views; `ref` is the row index.
     events = [

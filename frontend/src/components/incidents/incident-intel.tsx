@@ -90,21 +90,26 @@ export function IncidentAiReport({ incidentId, canEdit }: { incidentId: string; 
             <h3 className="mb-1.5 text-sm font-medium text-muted-foreground">Impact assessment</h3>
             <p className="max-w-[72ch]">{r.impact_assessment}</p>
           </div>
-          {r.indicators.length > 0 && (
+          {(r.indicators.length > 0 || !!r.ungrounded_indicators_removed) && (
             <div>
               <h3 className="mb-1.5 text-sm font-medium text-muted-foreground">
                 Indicators (each checked against the incident data)
               </h3>
-              <ul className="flex flex-col gap-1">
-                {r.indicators.map((ind, i) => (
-                  <li key={i}>
-                    <span className="font-mono text-sm">{ind.value}</span>{" "}
-                    <span className="text-muted-foreground">
-                      {ind.type}, {ind.context}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              {r.indicators.length > 0 ? (
+                <ul className="flex flex-col gap-1">
+                  {r.indicators.map((ind, i) => (
+                    <li key={i}>
+                      <span className="font-mono text-sm">{ind.value}</span>{" "}
+                      <span className="text-muted-foreground">
+                        {ind.type}, {ind.context}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">None that appear in the incident data.</p>
+              )}
+              {/* Always shown when something was dropped, even if nothing survived. */}
               {!!r.ungrounded_indicators_removed && (
                 <p className="mt-2 text-sm text-sev-medium">
                   {r.ungrounded_indicators_removed} indicator

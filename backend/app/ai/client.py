@@ -32,10 +32,13 @@ class AIClient(Protocol):
 
 
 class OpenAIClient:
-    def __init__(self, api_key: str, model: str, timeout_s: float = 60.0):
+    def __init__(self, api_key: str, model: str, timeout_s: float = 60.0, http_client=None):
         from openai import OpenAI
 
-        self._client = OpenAI(api_key=api_key, timeout=timeout_s, max_retries=2)
+        # http_client is injectable so tests can exercise the real SDK without network.
+        self._client = OpenAI(
+            api_key=api_key, timeout=timeout_s, max_retries=2, http_client=http_client
+        )
         self.model = model
 
     def complete(self, *, instructions: str, user: str, schema: type[T]) -> Completion[T]:

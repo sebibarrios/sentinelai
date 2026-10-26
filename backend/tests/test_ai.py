@@ -178,3 +178,35 @@ def test_log_content_cannot_break_out_of_the_data_block():
     assert message.count("<data>") == 1 and message.count("</data>") == 1
     inner = message.split("<data>\n", 1)[1].rsplit("\n</data>", 1)[0]
     assert json.loads(inner)["evidence_events"][0]["username"] == attack  # data preserved
+
+
+def test_acknowledging_an_alert_keeps_the_cached_analysis(analyst_client, alerts, fake_ai):
+    alert_id = alerts["AUTH-001"]["id"]
+    first = analyst_client.post(f"{API}/ai/alerts/{alert_id}/explain").json()
+    analyst_client.patch(f"{API}/alerts/{alert_id}", json={"status": "acknowledged"})
+    again = analyst_client.post(f"{API}/ai/alerts/{alert_id}/explain").json()
+    assert again["cached"] is True and again["id"] == first["id"] and len(fake_ai.calls) == 1
+
+
+def test_concurrent_identical_requests_return_one_analysis(db, alerts, monkeypatch):
+    """Simulate the race: our cache check misses, but another request stores first."""
+    from app.models import AiAnalysis, Alert, User
+    from app.services import ai as ai_svc
+
+    alert = db.get(Alert, alerts["AUTH-001"]["id"])
+    user = db.query(User).filter_by(email="analyst@example.com").one()
+    fake = FakeAI()
+    first, _ = ai_svc.explain_alert(db, alert, user, fake)
+
+    real_cached = ai_svc._cached
+    calls = {"n": 0}
+
+    def miss_once(*args, **kwargs):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real_cached(*args, **kwargs)
+
+    monkeypatch.setattr(ai_svc, "_cached", miss_once)
+    second, _ = ai_svc.explain_alert(db, alert, user, fake)
+
+    assert second.id == first.id  # the duplicate insert was caught; existing row returned
+    assert db.query(AiAnalysis).count() == 1

@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useLogin } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
+import { safeRedirectPath } from "@/lib/redirect";
 
-/** Only follow same-site relative paths, never absolute URLs (open-redirect protection). */
+/** Where to go after sign-in: the ?next= page, but only if it stays on this site. */
 function safeNextPath(): string {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  return safeRedirectPath(next, window.location.origin);
 }
 
 export default function LoginPage() {

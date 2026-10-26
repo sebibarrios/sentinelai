@@ -16,6 +16,7 @@ from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai import prompts
@@ -113,7 +114,15 @@ def _store(
         requested_by_id=user.id,
     )
     db.add(analysis)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two identical requests raced; the other one stored first. Return its result.
+        db.rollback()
+        existing = _cached(db, target_type.value, target_id, kind.value, input_hash, version)
+        if existing is None:
+            raise
+        return existing
     db.refresh(analysis)
     return analysis
 

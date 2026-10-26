@@ -74,7 +74,8 @@ def make_user(db: Session) -> Callable[..., User]:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(app) as c:
+    # Like the real frontend, send the CSRF header on every request.
+    with TestClient(app, headers={"X-Requested-With": "pytest"}) as c:
         yield c
 
 

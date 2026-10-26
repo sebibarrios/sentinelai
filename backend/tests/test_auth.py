@@ -119,3 +119,15 @@ def test_admin_can_promote_user_but_not_demote_self(client, make_user, login):
 def test_non_admin_cannot_list_users(analyst_client):
     r = analyst_client.get(f"{API}/users")
     assert r.status_code == 403
+
+
+def test_state_changing_requests_need_the_csrf_header(analyst_client):
+    bare = {"X-Requested-With": ""}
+    r = analyst_client.post(
+        "/api/v1/incidents", json={"title": "x" * 5, "severity": "low"}, headers=bare
+    )
+    assert r.status_code == 403 and r.json()["error"]["code"] == "csrf_header_missing"
+    # Reads are unaffected, and the same request with the header works.
+    assert analyst_client.get("/api/v1/incidents", headers=bare).status_code == 200
+    ok = analyst_client.post("/api/v1/incidents", json={"title": "x" * 5, "severity": "low"})
+    assert ok.status_code == 201

@@ -80,7 +80,8 @@ def _alert_dict(a: Alert) -> dict[str, Any]:
         "rule_description": a.rule_description,
         "title": _clip(a.title),
         "severity": a.severity.value,
-        "status": a.status.value,
+        # Workflow status is deliberately left out: acknowledging an alert doesn't change
+        # its evidence, so it shouldn't invalidate the cached analysis.
         "src_ip": str(a.src_ip) if a.src_ip else None,
         "username": _clip(a.username),
         "first_seen": a.first_seen.strftime("%Y-%m-%dT%H:%M:%SZ"),

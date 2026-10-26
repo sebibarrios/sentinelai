@@ -1,8 +1,12 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# Values that must never reach production. The dev default lets the app start locally.
+_DEV_JWT_SECRET = "dev-only-insecure-secret-change-me-0123456789"  # noqa: S105
+_PLACEHOLDER_PREFIXES = ("dev-only", "change-me", "replace-me")
 
 
 class Settings(BaseSettings):
@@ -13,13 +17,16 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinelai"
 
-    jwt_secret: str = Field(default="dev-only-insecure-secret-change-me-0123456789", min_length=32)
+    jwt_secret: str = Field(default=_DEV_JWT_SECRET, min_length=32)
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
     cookie_name: str = "sentinel_session"
 
-    cors_origins: list[str] = ["http://localhost:3000"]
-    enable_docs: bool = True
+    # NoDecode: accept a plain comma-separated string (CORS_ORIGINS=http://a,http://b)
+    # instead of requiring JSON, which pydantic-settings would otherwise attempt.
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
+    # None means "on in development, off in production" unless set explicitly.
+    enable_docs: bool | None = None
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
@@ -28,14 +35,17 @@ class Settings(BaseSettings):
     max_upload_mb: int = 10
     max_upload_rows: int = 100_000
 
-    login_attempts_per_15min: int = 10
-
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, v: object) -> object:
-        if isinstance(v, str) and not v.startswith("["):
+        if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    @field_validator("openai_api_key", mode="before")
+    @classmethod
+    def blank_key_is_none(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     @field_validator("database_url")
     @classmethod
@@ -51,10 +61,18 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment == "production"
 
+    @property
+    def docs_enabled(self) -> bool:
+        return self.enable_docs if self.enable_docs is not None else not self.is_production
+
+
+def validate_for_production(settings: Settings) -> None:
+    if settings.is_production and settings.jwt_secret.startswith(_PLACEHOLDER_PREFIXES):
+        raise RuntimeError("JWT_SECRET must be set to a long random value in production")
+
 
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
-    if settings.is_production and settings.jwt_secret.startswith("dev-only"):
-        raise RuntimeError("JWT_SECRET must be set in production")
+    validate_for_production(settings)
     return settings
