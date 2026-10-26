@@ -35,7 +35,6 @@ def upgrade() -> None:
         sa.Column("tokens_out", sa.Integer(), nullable=True),
         sa.Column("requested_by_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("error", sa.Text(), nullable=True),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.ForeignKeyConstraint(
             ["requested_by_id"], ["users.id"], name=op.f("fk_ai_analyses_requested_by_id_users")

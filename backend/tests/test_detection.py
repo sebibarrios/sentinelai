@@ -176,6 +176,13 @@ def test_each_planted_attack_found_once_and_no_false_positives(seed):
     assert sorted(ids(alerts)) == EXPECTED
 
 
+@pytest.mark.parametrize("hour", range(24))
+def test_result_does_not_depend_on_time_of_day(hour):
+    """Demo data ends 'now' in real use, so every end hour must give the same alerts."""
+    end = T0.replace(hour=hour, minute=37)
+    assert sorted(ids(run_rules(_to_events(generate(seed=5, end=end))))) == EXPECTED
+
+
 def test_dedupe_keys_are_stable_across_runs():
     log = generate(seed=3, end=T0)
     first = {a.dedupe_key for a in run_rules(_to_events(log))}

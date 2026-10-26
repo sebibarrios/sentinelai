@@ -126,14 +126,25 @@ def generate(end: datetime | None = None, seed: int = 7, hours: int = 24) -> Syn
     scenarios.append("Brute force against the admin account from 203.0.113.45")
 
     # 2. Password spraying (AUTH-002) that succeeds (AUTH-003) from a new IP (AUTH-005).
-    t = base + timedelta(hours=6, minutes=3)
+    # These are the only planted *successful* logins, so keep them (and jdoe's baseline
+    # login 2h earlier) out of the 00:00-05:00 UTC band; otherwise AUTH-004 would also
+    # fire. Candidates are 6h apart, so a 5h band can block at most two of three.
+    def clear_of_off_hours(at: datetime) -> bool:
+        span = [at - timedelta(hours=2) + timedelta(minutes=m) for m in range(0, 131, 5)]
+        return all(x.hour >= 5 for x in span)
+
+    t = next(
+        c
+        for c in (base + timedelta(hours=h, minutes=3) for h in (6, 12, 0))
+        if clear_of_off_hours(c)
+    )
     targets = ["aknguyen", "spatel", "jdoe", "tkim", "rsilva", "cchen", "dlopez", "jdoe", "jdoe"]
     for i, victim in enumerate(targets):
         auth(t + timedelta(seconds=i * 35), victim, SPRAY_IP, "failure", "NL", "curl/8.4.0")
     auth(t + timedelta(minutes=6), "jdoe", SPRAY_IP, "success", "NL", "curl/8.4.0")
     scenarios.append("Password spray from 198.51.100.23 ending in a jdoe login")
-    # jdoe's normal baseline login earlier that day, so the spray IP is "new".
-    auth(base + timedelta(hours=1), "jdoe", "10.20.9.9", "success", "US")
+    # jdoe's normal baseline login earlier, so the spray IP is "new".
+    auth(t - timedelta(hours=2), "jdoe", "10.20.9.9", "success", "US")
 
     # 3. Port scan (NET-001) with many denied connections (NET-002).
     t = base + timedelta(hours=9, minutes=40)

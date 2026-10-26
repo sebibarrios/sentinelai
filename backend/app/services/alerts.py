@@ -86,7 +86,6 @@ def latest_analysis(db: Session, target_type: str, target_id: uuid.UUID) -> AiAn
         .where(
             AiAnalysis.target_type == target_type,
             AiAnalysis.target_id == target_id,
-            AiAnalysis.error.is_(None),
         )
         .order_by(AiAnalysis.created_at.desc())
         .limit(1)

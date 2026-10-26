@@ -1,10 +1,12 @@
-"""Create demo users and sample incidents.
+"""Create demo users, sample incidents, and a synthetic log upload with alerts.
 
 Usage:  python -m scripts.seed
 Demo passwords come from SEED_PASSWORD (default only allowed outside production).
 Safe to run more than once: existing users and incidents are left alone.
 """
 
+import csv
+import io
 import os
 import sys
 
@@ -13,10 +15,12 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models import Incident, User
+from app.ingest.synthetic import generate
+from app.models import Incident, LogUpload, User
 from app.models.enums import IncidentStatus, Role, Severity
 from app.schemas.incident import IncidentCreate, IncidentUpdate
 from app.services import incidents as svc
+from app.services.uploads import ingest_upload
 
 DEMO_USERS = [
     ("admin@sentinel.demo", "Avery Admin", Role.admin),
@@ -96,6 +100,22 @@ def main() -> None:
                 analyst,
             )
             print(f"created {len(DEMO_INCIDENTS)} demo incidents")
+
+        if (db.scalar(select(func.count()).select_from(LogUpload)) or 0) == 0:
+            # Fresh synthetic log ending now, so dashboard time ranges show activity.
+            log = generate()
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=list(log.rows[0]))
+            writer.writeheader()
+            writer.writerows(log.rows)
+            upload = ingest_upload(
+                db,
+                filename="demo-auth-network-24h.csv",
+                content=buf.getvalue().encode(),
+                user=users[Role.analyst],
+                max_rows=settings.max_upload_rows,
+            )
+            print(f"ingested {upload.rows_parsed} events -> {upload.alerts_created} alerts")
     finally:
         db.close()
 

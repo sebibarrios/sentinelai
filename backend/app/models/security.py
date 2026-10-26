@@ -14,7 +14,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
@@ -188,6 +187,5 @@ class AiAnalysis(UUIDPrimaryKey, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True, nullable=False
     )
-    error: Mapped[str | None] = mapped_column(Text)
 
     requested_by: Mapped[User] = relationship(lazy="joined")

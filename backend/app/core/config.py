@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     enable_docs: bool = True
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5-mini"
     ai_requests_per_hour: int = 20
 
     max_upload_mb: int = 10
