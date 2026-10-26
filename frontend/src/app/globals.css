@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+  SentinelAI design tokens.
+  Base: deep slate-navy, not black. The only saturated colors are the four
+  severity hues and one periwinkle for interactive controls — when something
+  is bright, it means something.
+*/
+:root {
+  --ink: #0e1726; /* app background */
+  --panel: #142035; /* panels, sidebar */
+  --raised: #1b2a43; /* hover rows, inputs, menus */
+  --line: #26354f; /* hairline borders */
+  --fg: #e4e9f2;
+  --fg-muted: #8c9ab3;
+  --fg-faint: #5d6c86;
+  --accent: #7aa2f7;
+  --accent-ink: #0e1726;
+
+  --sev-low: #6fb7a8;
+  --sev-medium: #e3b341;
+  --sev-high: #f2894b;
+  --sev-critical: #f25f6b;
+
+  --radius-control: 6px;
+  --radius-panel: 10px;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  /* shadcn/ui semantic names mapped onto SentinelAI tokens */
+  --color-background: var(--ink);
+  --color-foreground: var(--fg);
+  --color-card: var(--panel);
+  --color-card-foreground: var(--fg);
+  --color-popover: var(--raised);
+  --color-popover-foreground: var(--fg);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--raised);
+  --color-secondary-foreground: var(--fg);
+  --color-muted: var(--raised);
+  --color-muted-foreground: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-accent: var(--raised);
+  --color-accent-foreground: var(--fg);
+  --color-destructive: var(--sev-critical);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+
+  --color-sev-low: var(--sev-low);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-high: var(--sev-high);
+  --color-sev-critical: var(--sev-critical);
+
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-panel);
+
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Type scale: 12 / 13 / 14 / 16 / 20 / 28 / 40 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+  html {
+    background: var(--ink);
+  }
+  body {
+    background: var(--ink);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    font-feature-settings: "tnum" 1; /* aligned figures for counts and times */
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
