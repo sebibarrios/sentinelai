@@ -36,6 +36,10 @@ def _audit(
     )
 
 
+# Public name for other services (e.g. linking an alert) to write audit entries.
+record = _audit
+
+
 def _validate_assignee(db: Session, assignee_id: uuid.UUID | None) -> User | None:
     if assignee_id is None:
         return None
