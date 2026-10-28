@@ -1,7 +1,8 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useQuery } from "@/lib/query";
 import { api } from "@/lib/api";
 import type {
   DashboardSummary,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { toast } from "sonner";
 
 import { ErrorState, PageHeader } from "@/components/states";
@@ -16,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMe } from "@/hooks/use-auth";
+import { useQuery } from "@/lib/query";
 import { api, ApiError } from "@/lib/api";
 import type { Page, Role, User } from "@/lib/types";
 import { capitalize, formatDateTime } from "@/lib/utils";

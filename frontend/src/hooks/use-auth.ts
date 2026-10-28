@@ -1,8 +1,10 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { useRouter } from "next/navigation";
 
+import { useQuery } from "@/lib/query";
 import { api, ApiError } from "@/lib/api";
 import type { Role, User } from "@/lib/types";
 
