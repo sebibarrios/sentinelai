@@ -11,7 +11,7 @@ AI-powered security operations platform: upload security logs, detect threats wi
 ### With Docker
 
 ```bash
-docker compose up --build
+docker compose up --build --wait
 docker compose exec backend python -m scripts.seed
 ```
 
