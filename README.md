@@ -1,8 +1,11 @@
 # SentinelAI
 
+[![CI](https://github.com/sebibarrios/sentinelai/actions/workflows/ci.yml/badge.svg)](https://github.com/sebibarrios/sentinelai/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sebibarrios/sentinelai/actions/workflows/codeql.yml/badge.svg)](https://github.com/sebibarrios/sentinelai/actions/workflows/codeql.yml)
+
 AI-powered security operations platform: upload security logs, detect threats with deterministic rules, manage incidents, and get AI-generated explanations that are clearly separated from verified findings.
 
-**Status:** in active development. Log upload, eight detection rules, alerts, incident management, the AI analyst, and role-based access are working; security hardening, CI/CD and deployment are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
+**Status:** feature-complete MVP, tested in CI; deployment is next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and [docs/SECURITY.md](docs/SECURITY.md) for the threat model and security controls.
 
 **Stack:** Next.js · React · TypeScript · Tailwind CSS · shadcn/ui · FastAPI · PostgreSQL · SQLAlchemy · Alembic · OpenAI API · Docker · Pytest · Playwright · GitHub Actions
 
@@ -50,7 +53,32 @@ Created by the seed script (local password `SentinelDemo2026`, or `SEED_PASSWORD
 
 ## Tests
 
+Every push runs the full pipeline in GitHub Actions: lint, migration checks, unit and API tests, browser tests, a Docker build with a Compose smoke test, and CodeQL.
+
 ```bash
-cd backend && pytest --cov=app        # needs a sentinelai_test database
+# Backend: unit + API tests against real PostgreSQL (needs a sentinelai_test database)
+cd backend && pytest --cov=app
+
+# Frontend: lint, types, production build
 cd frontend && npm run lint && npm run typecheck && npm run build
+
+# End-to-end: starts the API and web app itself, resets a sentinelai_e2e database,
+# and uses a deterministic offline AI fixture (no OpenAI calls)
+cd frontend && npx playwright install chromium && npm run test:e2e
 ```
+
+## Configuration for deployment
+
+Set these on the hosting platform, never in the repository. The backend refuses to start in production without the secrets.
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `ENVIRONMENT=production` | API | Enables production checks, `Secure` cookies, HSTS; turns off API docs |
+| `DATABASE_URL` | API | PostgreSQL connection string (`postgres://` URLs from providers are accepted) |
+| `JWT_SECRET` | API | Long random value that signs session tokens |
+| `PROXY_SHARED_SECRET` | API **and** web | Same long random value on both; the API refuses requests that don't come through the web app |
+| `OPENAI_API_KEY` | API | Enables the AI analyst (optional) |
+| `BACKEND_URL` | web (build time) | The API's URL; Next.js forwards `/api/*` there |
+| `CLIENT_IP_HEADER` | web | Header your host sets to the visitor's IP (e.g. `x-real-ip` on Vercel), used for per-IP rate limits |
+
+Generate secrets with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
