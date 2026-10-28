@@ -27,12 +27,13 @@ def verify_password(password: str, password_hash: str | None) -> bool:
         return False
 
 
-def create_access_token(user_id: UUID, role: str) -> str:
+def create_access_token(user_id: UUID, role: str, session_version: int = 0) -> str:
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "role": role,
+        "sv": session_version,
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_minutes),
         "typ": "access",
@@ -47,7 +48,7 @@ def decode_access_token(token: str) -> dict | None:
             token,
             settings.jwt_secret,
             algorithms=[settings.jwt_algorithm],
-            options={"require": ["sub", "exp", "iat"]},
+            options={"require": ["sub", "exp", "iat", "sv"]},
         )
     except jwt.PyJWTError:
         return None

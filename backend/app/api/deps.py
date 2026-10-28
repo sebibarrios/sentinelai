@@ -29,7 +29,9 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     # Re-load from the DB on every request so role changes and deactivation apply immediately,
     # rather than trusting the role claim baked into the token.
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or payload.get("sv") != user.session_version:
+        # A session_version mismatch means the user signed out or changed password
+        # since this token was issued.
         raise Unauthorized("Session expired or invalid")
     return user
 

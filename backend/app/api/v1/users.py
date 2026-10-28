@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Admin, Analyst, CurrentUser
+from app.api.v1.auth import set_session_cookie
 from app.core.errors import AppError, NotFound, Unauthorized
 from app.core.security import hash_password, verify_password
 from app.db.session import get_db
@@ -34,12 +35,18 @@ def update_profile(
 
 @router.post("/me/password", status_code=204)
 def change_password(
-    data: PasswordChange, user: User = CurrentUser, db: Session = Depends(get_db)
+    data: PasswordChange,
+    response: Response,
+    user: User = CurrentUser,
+    db: Session = Depends(get_db),
 ) -> None:
     if not verify_password(data.current_password, user.password_hash):
         raise Unauthorized("Current password is incorrect")
     user.password_hash = hash_password(data.new_password)
+    # Sign out every other session (e.g. a stolen cookie), then keep this one signed in.
+    user.session_version += 1
     db.commit()
+    set_session_cookie(response, user)
 
 
 @router.get("/assignable", response_model=list[UserBrief])
@@ -85,6 +92,8 @@ def admin_update_user(
     if data.role is not None:
         target.role = data.role
     if data.is_active is not None:
+        if target.is_active and not data.is_active:
+            target.session_version += 1  # end their sessions now, not at token expiry
         target.is_active = data.is_active
     db.commit()
     db.refresh(target)

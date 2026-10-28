@@ -52,9 +52,22 @@ def test_production_refuses_placeholder_secrets(monkeypatch, secret):
 def test_production_defaults_docs_off(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("JWT_SECRET", "x" * 48)
+    monkeypatch.setenv("PROXY_SHARED_SECRET", "p" * 40)
     s = Settings(_env_file=None)
-    validate_for_production(s)  # a real secret passes
+    validate_for_production(s)  # real secrets pass
     assert s.docs_enabled is False
+
+
+@pytest.mark.parametrize("proxy_secret", [None, "too-short"])
+def test_production_requires_a_strong_proxy_secret(monkeypatch, proxy_secret):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "x" * 48)
+    if proxy_secret:
+        monkeypatch.setenv("PROXY_SHARED_SECRET", proxy_secret)
+    else:
+        monkeypatch.delenv("PROXY_SHARED_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="PROXY_SHARED_SECRET"):
+        validate_for_production(Settings(_env_file=None))
 
 
 def test_database_sessions_use_utc():

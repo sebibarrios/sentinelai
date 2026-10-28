@@ -131,3 +131,26 @@ def test_state_changing_requests_need_the_csrf_header(analyst_client):
     assert analyst_client.get("/api/v1/incidents", headers=bare).status_code == 200
     ok = analyst_client.post("/api/v1/incidents", json={"title": "x" * 5, "severity": "low"})
     assert ok.status_code == 201
+
+
+def test_security_headers_on_success_error_and_csrf_responses(client, analyst_client):
+    responses = [
+        client.get("/api/v1/health"),
+        client.get("/api/v1/incidents"),  # 401
+        client.post("/api/v1/incidents", json={}, headers={"X-Requested-With": ""}),  # 403 csrf
+        client.get("/api/v1/does-not-exist"),  # 404
+    ]
+    for r in responses:
+        h = r.headers
+        assert h["x-content-type-options"] == "nosniff", r.status_code
+        assert h["x-frame-options"] == "DENY"
+        assert h["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+        assert h["cache-control"] == "no-store"
+        assert "strict-transport-security" not in h  # only in production (HTTPS)
+
+
+def test_docs_page_keeps_working_without_the_strict_csp(client):
+    r = client.get("/api/docs")
+    assert r.status_code == 200 and "swagger" in r.text.lower()
+    assert "content-security-policy" not in r.headers
+    assert r.headers["x-content-type-options"] == "nosniff"

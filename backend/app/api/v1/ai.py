@@ -24,6 +24,10 @@ class AiResult(AiAnalysisOut):
 def ai_status(_: User = Viewer) -> dict:
     """Lets the UI show whether AI features are available, without exposing the key."""
     settings = get_settings()
+    if settings.ai_offline_fixtures:
+        from app.ai.fixtures import FIXTURE_MODEL
+
+        return {"enabled": True, "model": FIXTURE_MODEL}
     return {"enabled": bool(settings.openai_api_key), "model": settings.openai_model}
 
 

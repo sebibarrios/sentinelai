@@ -210,3 +210,33 @@ def test_concurrent_identical_requests_return_one_analysis(db, alerts, monkeypat
 
     assert second.id == first.id  # the duplicate insert was caught; existing row returned
     assert db.query(AiAnalysis).count() == 1
+
+
+def test_offline_fixtures_are_labeled_grounded_and_refused_in_production(
+    analyst_client, alerts, monkeypatch
+):
+    from app.ai.fixtures import FIXTURE_MODEL, INVENTED_INDICATOR
+    from app.core.config import Settings, validate_for_production
+
+    monkeypatch.setattr(get_settings(), "ai_offline_fixtures", True)
+    assert analyst_client.get(f"{API}/ai/status").json() == {
+        "enabled": True,
+        "model": FIXTURE_MODEL,
+    }
+
+    explained = analyst_client.post(f"{API}/ai/alerts/{alerts['AUTH-001']['id']}/explain").json()
+    assert explained["model"] == FIXTURE_MODEL
+    assert "203.0.113.45" in explained["output"]["summary"]  # built from the real alert
+
+    inc = analyst_client.post(f"{API}/alerts/{alerts['AUTH-003']['id']}/promote").json()
+    report = analyst_client.post(f"{API}/ai/incidents/{inc['incident_id']}/report").json()
+    values = {i["value"] for i in report["output"]["indicators"]}
+    assert INVENTED_INDICATOR not in values and "198.51.100.23" in values
+    assert report["output"]["ungrounded_indicators_removed"] == 1
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "x" * 48)
+    monkeypatch.setenv("PROXY_SHARED_SECRET", "p" * 40)
+    monkeypatch.setenv("AI_OFFLINE_FIXTURES", "true")
+    with pytest.raises(RuntimeError, match="AI_OFFLINE_FIXTURES"):
+        validate_for_production(Settings(_env_file=None))

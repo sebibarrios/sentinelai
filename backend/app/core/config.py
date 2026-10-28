@@ -35,6 +35,22 @@ class Settings(BaseSettings):
     max_upload_mb: int = 10
     max_upload_rows: int = 100_000
 
+    # Brute-force protection. Failed logins are counted per account and per client IP;
+    # reaching either limit blocks sign-in (even with the right password) until the
+    # oldest counted failure is older than the lockout window.
+    login_max_failures_per_account: int = 5
+    login_max_failures_per_ip: int = 20
+    login_lockout_minutes: int = 15
+    register_max_per_ip_per_hour: int = 10
+    # Shared with the Next.js frontend. When set, the API only accepts requests that
+    # carry it, so it can't be called directly, and it trusts the client IP the
+    # frontend forwards (used for per-IP rate limits). Unset in local development.
+    proxy_shared_secret: str | None = None
+
+    # Deterministic offline AI responses for end-to-end tests and keyless demos.
+    # Refused in production.
+    ai_offline_fixtures: bool = False
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, v: object) -> object:
@@ -42,7 +58,7 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    @field_validator("openai_api_key", mode="before")
+    @field_validator("openai_api_key", "proxy_shared_secret", mode="before")
     @classmethod
     def blank_key_is_none(cls, v: object) -> object:
         return None if isinstance(v, str) and not v.strip() else v
@@ -67,8 +83,14 @@ class Settings(BaseSettings):
 
 
 def validate_for_production(settings: Settings) -> None:
-    if settings.is_production and settings.jwt_secret.startswith(_PLACEHOLDER_PREFIXES):
+    if not settings.is_production:
+        return
+    if settings.jwt_secret.startswith(_PLACEHOLDER_PREFIXES):
         raise RuntimeError("JWT_SECRET must be set to a long random value in production")
+    if settings.ai_offline_fixtures:
+        raise RuntimeError("AI_OFFLINE_FIXTURES must not be enabled in production")
+    if not settings.proxy_shared_secret or len(settings.proxy_shared_secret) < 32:
+        raise RuntimeError("PROXY_SHARED_SECRET must be set (32+ characters) in production")
 
 
 @lru_cache
