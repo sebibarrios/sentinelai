@@ -6,8 +6,8 @@ services:
     name: sentinelai-api
     runtime: docker
     rootDir: backend
-    dockerfilePath: ./backend/Dockerfile # paths are relative to the repo root
-    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile # relative to rootDir
+    dockerContext: .
     plan: free
     region: ohio # next to the Neon database (AWS us-east-2)
     healthCheckPath: /api/v1/health
