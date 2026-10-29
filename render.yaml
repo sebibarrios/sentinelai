@@ -1,0 +1,30 @@
+# Render Blueprint for the API (https://render.com/docs/blueprint-spec).
+# The web app is deployed separately on Vercel. Render generates the two secret keys
+# itself; values marked `sync: false` are entered by hand in the Render dashboard.
+services:
+  - type: web
+    name: sentinelai-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile # paths are relative to the repo root
+    dockerContext: ./backend
+    plan: free
+    region: ohio # next to the Neon database (AWS us-east-2)
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: checksPass # deploy main only after CI passes
+    # Start-up steps (migrate, seed the demo, serve) are in backend/scripts/start.sh.
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PROXY_SHARED_SECRET # copy this value to the web app on Vercel
+        generateValue: true
+      - key: DATABASE_URL # Neon *direct* connection string (connection pooling off)
+        sync: false
+      - key: SEED_PASSWORD # shared password for the public analyst and viewer demo logins
+        sync: false
+      - key: SEED_ADMIN_PASSWORD # private admin password; don't publish it
+        sync: false
+      - key: OPENAI_API_KEY # optional; enables the AI analyst
+        sync: false

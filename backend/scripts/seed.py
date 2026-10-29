@@ -2,7 +2,12 @@
 
 Usage:  python -m scripts.seed
 Demo passwords come from SEED_PASSWORD (default only allowed outside production).
-Safe to run more than once: existing users and incidents are left alone.
+SEED_ADMIN_PASSWORD, if set, gives the admin account its own password, so a public demo
+can share the analyst and viewer logins without handing out admin rights.
+
+Safe to run more than once, and meant to run on every start of a public demo: incidents
+and uploads are only created once, and the analyst and viewer accounts are restored
+(password, role, active) so a visitor who changes them can't lock others out for long.
 """
 
 import csv
@@ -13,7 +18,7 @@ import sys
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.ingest.synthetic import generate
 from app.models import Incident, LogUpload, User
@@ -56,6 +61,16 @@ DEMO_INCIDENTS = [
 ]
 
 
+def restore_shared_demo_user(user: User, name: str, role: Role, password: str) -> None:
+    """Undo anything a visitor changed on a shared demo login."""
+    if not verify_password(password, user.password_hash):
+        user.password_hash = hash_password(password)
+        user.session_version += 1  # sign out whoever changed it
+    user.full_name = name
+    user.role = role
+    user.is_active = True
+
+
 def main() -> None:
     settings = get_settings()
     password = os.environ.get("SEED_PASSWORD")
@@ -67,15 +82,22 @@ def main() -> None:
     db = SessionLocal()
     try:
         users: dict[Role, User] = {}
+        admin_password = os.environ.get("SEED_ADMIN_PASSWORD") or password
         for email, name, role in DEMO_USERS:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
                 user = User(
-                    email=email, full_name=name, role=role, password_hash=hash_password(password)
+                    email=email,
+                    full_name=name,
+                    role=role,
+                    password_hash=hash_password(admin_password if role == Role.admin else password),
                 )
                 db.add(user)
                 db.commit()
                 print(f"created {role.value:8} {email}")
+            elif role != Role.admin:
+                restore_shared_demo_user(user, name, role, password)
+                db.commit()
             users[role] = user
 
         if (db.scalar(select(func.count()).select_from(Incident)) or 0) == 0:

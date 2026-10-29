@@ -14,8 +14,8 @@ def _use_utc(dbapi_connection, _record) -> None:
 
     Dashboard buckets use date_trunc, which follows the session time zone; a managed
     database configured for another zone would otherwise shift or empty the charts.
-    A SET statement (rather than a startup option) also works through PgBouncer-style
-    connection poolers that reject startup parameters.
+    Use a direct (unpooled) connection string: behind a transaction-mode pooler such
+    as PgBouncer, a session-level SET isn't guaranteed to stick to later transactions.
     """
     with dbapi_connection.cursor() as cursor:
         cursor.execute("SET TIME ZONE 'UTC'")

@@ -15,5 +15,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Apply migrations, then serve. $PORT is set by most hosting providers.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers"]
+# Migrate, seed if SEED_PASSWORD is set, then serve on $PORT (set by most hosts).
+CMD ["sh", "scripts/start.sh"]
