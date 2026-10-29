@@ -6,7 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.ai.client import AIUnavailable, Completion, get_ai_client
+from app.ai.client import AIUnavailable, Completion
+from app.ai.provider import get_ai_client
 from app.ai.schemas import AlertExplanation, IncidentReport
 from app.core.config import get_settings
 from app.ingest.synthetic import generate

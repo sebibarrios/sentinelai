@@ -3,7 +3,8 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.ai.client import AIClient, get_ai_client
+from app.ai.client import AIClient
+from app.ai.provider import get_ai_client
 from app.api.deps import Analyst, Viewer
 from app.core.config import get_settings
 from app.db.session import get_db

@@ -1,0 +1,4 @@
+# Alembic migrations are generated files whose module-level `revision` variables are
+# read by Alembic itself; CodeQL's quality queries flag them as unused.
+paths-ignore:
+  - backend/alembic/versions

@@ -7,8 +7,6 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from app.core.config import get_settings
-
 logger = logging.getLogger("sentinelai.ai")
 T = TypeVar("T", bound=BaseModel)
 
@@ -28,7 +26,8 @@ class Completion[T]:
 class AIClient(Protocol):
     model: str
 
-    def complete(self, *, instructions: str, user: str, schema: type[T]) -> Completion[T]: ...
+    def complete(self, *, instructions: str, user: str, schema: type[T]) -> Completion[T]:
+        """Return the model's answer parsed into `schema`; raise AIUnavailable on failure."""
 
 
 class OpenAIClient:
@@ -64,15 +63,3 @@ class OpenAIClient:
             tokens_in=getattr(usage, "input_tokens", None),
             tokens_out=getattr(usage, "output_tokens", None),
         )
-
-
-def get_ai_client() -> AIClient | None:
-    """FastAPI dependency. Returns None when no API key is configured."""
-    settings = get_settings()
-    if settings.ai_offline_fixtures:
-        from app.ai.fixtures import FixtureAIClient
-
-        return FixtureAIClient()
-    if not settings.openai_api_key:
-        return None
-    return OpenAIClient(settings.openai_api_key, settings.openai_model)

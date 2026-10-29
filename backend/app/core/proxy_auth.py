@@ -11,6 +11,7 @@ The health check stays open so the hosting provider can monitor the service.
 import hmac
 import ipaddress
 import logging
+from functools import cache
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -33,7 +34,12 @@ def has_valid_proxy_secret(request: Request) -> bool:
     return hmac.compare_digest(supplied.encode(), secret.encode())  # constant-time
 
 
-_warned_missing_ip = False
+@cache
+def _warn_missing_client_ip() -> None:
+    logger.warning(
+        "No client IP forwarded by the web app; per-IP rate limits are off. "
+        "Set CLIENT_IP_HEADER on the web server to enable them."
+    )
 
 
 def client_ip(request: Request) -> str | None:
@@ -46,18 +52,12 @@ def client_ip(request: Request) -> str | None:
       Per-account limits still apply.
     - No proxy secret configured (local development): the socket address.
     """
-    global _warned_missing_ip
     if has_valid_proxy_secret(request):
         claimed = request.headers.get(CLIENT_IP_HEADER, "").strip()
         try:
             return str(ipaddress.ip_address(claimed))
         except ValueError:
-            if not _warned_missing_ip:
-                logger.warning(
-                    "No client IP forwarded by the web app; per-IP rate limits are off. "
-                    "Set CLIENT_IP_HEADER on the web server to enable them."
-                )
-                _warned_missing_ip = True
+            _warn_missing_client_ip()
             return None
     return request.client.host if request.client else None
 
