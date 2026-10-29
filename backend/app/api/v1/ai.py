@@ -3,10 +3,10 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.ai import provider
 from app.ai.client import AIClient
 from app.ai.provider import get_ai_client
 from app.api.deps import Analyst, Viewer
-from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import User
 from app.schemas.security import AiAnalysisOut
@@ -24,12 +24,7 @@ class AiResult(AiAnalysisOut):
 @router.get("/status")
 def ai_status(_: User = Viewer) -> dict:
     """Lets the UI show whether AI features are available, without exposing the key."""
-    settings = get_settings()
-    if settings.ai_offline_fixtures:
-        from app.ai.fixtures import FIXTURE_MODEL
-
-        return {"enabled": True, "model": FIXTURE_MODEL}
-    return {"enabled": bool(settings.openai_api_key), "model": settings.openai_model}
+    return provider.ai_status()
 
 
 @router.post("/alerts/{alert_id}/explain", response_model=AiResult)

@@ -26,5 +26,9 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD # private admin password; don't publish it
         sync: false
-      - key: OPENAI_API_KEY # optional; enables the AI analyst
+      - key: AI_PROVIDER
+        value: gemini # free tier
+      - key: GEMINI_API_KEY # optional; enables the AI features (free from Google AI Studio)
+        sync: false
+      - key: OPENAI_API_KEY # optional; only used with AI_PROVIDER=openai
         sync: false

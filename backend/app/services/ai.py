@@ -27,6 +27,7 @@ from app.core.errors import ServiceUnavailable, TooManyRequests
 from app.db.base import utcnow
 from app.models import AiAnalysis, Alert, Incident, User
 from app.models.enums import AiKind, AiTarget
+from app.services import rate_limit
 from app.services.alerts import evidence_for
 
 
@@ -37,9 +38,7 @@ class AIServiceError(ServiceUnavailable):
 
 def _require(client: AIClient | None) -> AIClient:
     if client is None:
-        raise ServiceUnavailable(
-            "AI analysis isn't configured on this server (OPENAI_API_KEY is not set)."
-        )
+        raise ServiceUnavailable("AI analysis is turned off on this server.")
     return client
 
 
@@ -75,6 +74,11 @@ def _check_rate_limit(db: Session, user: User) -> None:
     )
     if recent >= limit:
         raise TooManyRequests(f"AI request limit reached ({limit} per hour). Try again later.")
+    # Then the site-wide daily budget, counted atomically before the (billable) call so
+    # simultaneous requests can't overshoot it. Failed calls count too: they may still
+    # have used tokens.
+    rate_limit.reserve(db, rate_limit.ai_requests_site_wide(), "all")
+    db.commit()
 
 
 def _ground_indicators(report: IncidentReport, data: dict[str, Any]) -> tuple[IncidentReport, int]:

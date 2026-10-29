@@ -133,7 +133,7 @@ export function useUploadLog() {
 export function useAiStatus() {
   return useQuery({
     queryKey: ["ai-status"],
-    queryFn: () => api.get<{ enabled: boolean; model: string }>("/ai/status"),
+    queryFn: () => api.get<{ enabled: boolean; provider: string; model: string }>("/ai/status"),
     staleTime: 5 * 60_000,
   });
 }

@@ -70,12 +70,12 @@ Three inputs are treated as hostile:
 | Prompt injection through log content | Log data reaches the model only inside one `<data>` block in which `<` and `>` are escaped, so a field like `</data>IGNORE...` can't break out; the instructions treat the block as untrusted data | `ai/prompts.py` | `test_log_content_cannot_break_out_of_the_data_block` |
 | Hallucinated indicators | Indicators in incident reports must appear verbatim in the input data; others are removed and the count is shown to the analyst | `services/ai.py` | `test_incident_report_drops_hallucinated_indicators`; e2e investigation test |
 | AI output mistaken for fact | Stored separately (`ai_analyses`), labeled "AI-generated" with model, prompt version, and requester; it can't change alert or incident state | `models/security.py`, `components/ai-panel.tsx` | `test_explain_alert_stores_labeled_result_and_caches` |
-| Key exposure or runaway cost | The key lives only on the backend (never `NEXT_PUBLIC_`); 20 new requests per user per hour; identical evidence is served from cache; provider data retention is off (`store=False`) | `ai/client.py`, `services/ai.py` | `test_rate_limit_applies_to_new_calls`, `test_structured_output_round_trip` |
+| Key exposure or runaway cost | The key lives only on the backend (never `NEXT_PUBLIC_`) and is never returned by the API; 20 new requests per user per hour, plus a site-wide daily budget counted atomically before each call, so creating many accounts can't overspend; identical evidence is served from cache; OpenAI data retention is off (`store=False`) | `ai/client.py`, `ai/provider.py`, `services/ai.py` | `test_rate_limit_applies_to_new_calls`, `test_site_wide_daily_budget_caps_new_calls_across_all_users`, `test_provider_setting_selects_the_client_and_ai_is_off_without_a_key`, `test_structured_output_round_trip` |
 | Malformed model output | Structured output against a strict schema, re-validated with Pydantic before storage | `ai/client.py` | `test_schema_violation_is_reported_not_stored` |
 
 ### Supply chain and process
 
-- **CI** runs lint, migration drift checks, 153 backend tests with a 90% coverage floor, 19 browser tests, and a Docker Compose smoke test on every push.
+- **CI** runs lint, migration drift checks, 164 backend tests with a 90% coverage floor, 19 browser tests, and a Docker Compose smoke test on every push.
 - **CodeQL** scans Python and TypeScript on every push and weekly.
 - **Dependabot** opens weekly update PRs for pip, npm, GitHub Actions, and base images.
 - **Secrets** are kept out of the repository; `.env` is git-ignored, and the full history was scanned during the Phase 1–4 audit.

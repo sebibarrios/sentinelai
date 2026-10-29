@@ -63,6 +63,15 @@ def registrations_per_ip() -> Limit:
 client_ip = _client_ip
 
 
+def ai_requests_site_wide() -> Limit:
+    return Limit(
+        "ai_site_wide",
+        get_settings().ai_requests_per_day_site_wide,
+        timedelta(hours=24),
+        "The demo's daily AI budget is used up.",
+    )
+
+
 def password_change_failures_per_user() -> Limit:
     s = get_settings()
     return Limit(

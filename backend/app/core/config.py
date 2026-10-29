@@ -28,9 +28,21 @@ class Settings(BaseSettings):
     # None means "on in development, off in production" unless set explicitly.
     enable_docs: bool | None = None
 
+    # AI provider. Both are called through the OpenAI SDK (Gemini via its
+    # OpenAI-compatible endpoint). With no key for the chosen provider, AI is off.
+    ai_provider: Literal["openai", "gemini"] = "openai"
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
-    ai_requests_per_hour: int = 20
+    openai_embedding_model: str = "text-embedding-3-small"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-flash-latest"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    # Vectors are stored at this size (pgvector column); both providers can shorten theirs.
+    embedding_dimensions: int = 768
+    ai_requests_per_hour: int = 20  # per user; cached answers don't count
+    # Site-wide cap on new AI requests per 24 hours, so a public demo stays inside a
+    # provider's free tier no matter how many accounts visitors create.
+    ai_requests_per_day_site_wide: int = 250
 
     max_upload_mb: int = 10
     max_upload_rows: int = 100_000
@@ -58,7 +70,7 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    @field_validator("openai_api_key", "proxy_shared_secret", mode="before")
+    @field_validator("openai_api_key", "gemini_api_key", "proxy_shared_secret", mode="before")
     @classmethod
     def blank_key_is_none(cls, v: object) -> object:
         return None if isinstance(v, str) and not v.strip() else v

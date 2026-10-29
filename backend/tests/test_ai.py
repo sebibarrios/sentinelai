@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.ingest.synthetic import generate
 from app.main import app
 from app.models.enums import Role
+from tests.conftest import PASSWORD
 
 API = "/api/v1"
 
@@ -81,7 +82,7 @@ def test_without_api_key_ai_is_cleanly_unavailable(analyst_client, alerts):
     assert analyst_client.get(f"{API}/ai/status").json()["enabled"] is False
     r = analyst_client.post(f"{API}/ai/alerts/{alerts['AUTH-001']['id']}/explain")
     assert r.status_code == 503
-    assert "isn't configured" in r.json()["error"]["message"]
+    assert "turned off" in r.json()["error"]["message"]
 
 
 def test_explain_alert_stores_labeled_result_and_caches(analyst_client, alerts, fake_ai):
@@ -117,6 +118,27 @@ def test_rate_limit_applies_to_new_calls(analyst_client, alerts, fake_ai, monkey
     assert analyst_client.post(f"{API}/ai/alerts/{a}/explain").status_code == 200  # cache hit
     r = analyst_client.post(f"{API}/ai/alerts/{b}/explain")
     assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
+
+
+def test_site_wide_daily_budget_caps_new_calls_across_all_users(
+    analyst_client, alerts, fake_ai, make_user, monkeypatch
+):
+    """Visitors can create many accounts; the daily budget still bounds total spend."""
+    monkeypatch.setattr(get_settings(), "ai_requests_per_day_site_wide", 2)
+    a, b, c = (alerts[k]["id"] for k in ("AUTH-001", "NET-001", "AUTH-002"))
+    assert analyst_client.post(f"{API}/ai/alerts/{a}/explain").status_code == 200
+    assert analyst_client.post(f"{API}/ai/alerts/{b}/explain").status_code == 200
+
+    make_user("second@example.com", Role.analyst)
+    analyst_client.post(f"{API}/auth/logout")
+    analyst_client.post(
+        f"{API}/auth/login", json={"email": "second@example.com", "password": PASSWORD}
+    )
+    r = analyst_client.post(f"{API}/ai/alerts/{c}/explain")
+    assert r.status_code == 429 and "daily AI budget" in r.json()["error"]["message"]
+    # Cached answers are free, so they're still served.
+    assert analyst_client.post(f"{API}/ai/alerts/{a}/explain").json()["cached"] is True
+    assert len(fake_ai.calls) == 2
 
 
 def test_ai_failure_returns_502_and_stores_nothing(analyst_client, alerts):
@@ -222,6 +244,7 @@ def test_offline_fixtures_are_labeled_grounded_and_refused_in_production(
     monkeypatch.setattr(get_settings(), "ai_offline_fixtures", True)
     assert analyst_client.get(f"{API}/ai/status").json() == {
         "enabled": True,
+        "provider": "offline-fixture",
         "model": FIXTURE_MODEL,
     }
 
