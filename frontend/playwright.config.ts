@@ -29,7 +29,7 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0, // a flaky test should fail loudly, not pass on a second try
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"]],
+  reporter: process.env.CI ? [["github"], ["line"], ["html", { open: "never" }]] : [["list"]],
   timeout: 30_000,
   expect: { timeout: 7_000 },
   use: {

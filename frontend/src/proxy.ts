@@ -19,8 +19,24 @@ function trustedClientIp(request: NextRequest): string | null {
   return value ? value.split(",")[0].trim() : null;
 }
 
+/**
+ * Largest request body this proxy passes on. Next.js buffers proxied bodies and silently
+ * truncates anything over experimental.proxyClientMaxBodySize (set to the same value in
+ * next.config.ts), which made over-limit uploads fail with a 500 instead of a clear error.
+ * Allows a 10 MB file (the API's own limit, which it enforces exactly) plus form overhead.
+ */
+const MAX_PROXY_BODY_BYTES = 11 * 1024 * 1024;
+
 /** API requests: vouch for them to the backend (see backend/app/core/proxy_auth.py). */
 function forwardToApi(request: NextRequest) {
+  const length = Number(request.headers.get("content-length") ?? 0);
+  if (length > MAX_PROXY_BODY_BYTES) {
+    return NextResponse.json(
+      { error: { code: "payload_too_large", message: "File is larger than 10 MB.", details: null } },
+      { status: 413 },
+    );
+  }
+
   const headers = new Headers(request.headers);
   headers.delete(PROXY_SECRET_HEADER);
   headers.delete(CLIENT_IP_HEADER);

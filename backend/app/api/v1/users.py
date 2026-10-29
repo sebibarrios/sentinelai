@@ -19,6 +19,7 @@ from app.schemas.user import (
     UserBrief,
     UserOut,
 )
+from app.services import rate_limit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -40,8 +41,14 @@ def change_password(
     user: User = CurrentUser,
     db: Session = Depends(get_db),
 ) -> None:
+    # Same pattern as login: a stolen session must not allow unlimited guesses at the
+    # current password (which would also unlock the account's email and password).
+    limit = rate_limit.password_change_failures_per_user()
+    rate_limit.reserve(db, limit, str(user.id))
+    db.commit()
     if not verify_password(data.current_password, user.password_hash):
         raise Unauthorized("Current password is incorrect")
+    rate_limit.clear(db, limit, str(user.id))
     user.password_hash = hash_password(data.new_password)
     # Sign out every other session (e.g. a stolen cookie), then keep this one signed in.
     user.session_version += 1

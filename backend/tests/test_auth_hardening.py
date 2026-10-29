@@ -244,3 +244,76 @@ def test_forged_algorithm_none_token_is_rejected(make_user):
     c = TestClient(app)
     c.cookies.set(get_settings().cookie_name, forged)
     assert c.get(f"{API}/auth/me").status_code == 401
+
+
+# --- Found in the Phase 5 recheck --------------------------------------------------------
+
+
+def test_simultaneous_guesses_cannot_exceed_the_account_limit(make_user):
+    """30 guesses released at the same instant: at most 5 may reach the password check.
+
+    Before the fix, every request read the failure count before any of them recorded a
+    failure, so 15-18 of 30 got through.
+    """
+    import threading
+
+    make_user("race@example.com")
+    n = 30
+    barrier = threading.Barrier(n)
+    codes: list[int] = []
+    lock = threading.Lock()
+
+    def guess(i: int) -> None:
+        c = TestClient(app, headers={"X-Requested-With": "pytest"})
+        barrier.wait()
+        r = c.post(
+            f"{API}/auth/login", json={"email": "race@example.com", "password": f"g{i}x" * 3}
+        )
+        with lock:
+            codes.append(r.status_code)
+
+    threads = [threading.Thread(target=guess, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(set(codes)) <= [401, 429]
+    assert codes.count(401) <= 5, f"{codes.count(401)} guesses were checked; the limit is 5"
+
+
+def test_without_a_forwarded_client_ip_one_attacker_cannot_lock_out_everyone(
+    monkeypatch, make_user
+):
+    """If the host's client-IP header isn't configured, every visitor would share the
+    frontend's IP. Per-IP limits must then be skipped, not applied to everyone at once."""
+    monkeypatch.setattr(get_settings(), "proxy_shared_secret", SECRET)
+    make_user("admin2@example.com")
+    attacker = _proxied()  # vouched for by the frontend, but no client IP forwarded
+    for i in range(25):
+        attempt(attacker, f"stranger{i}@example.com")
+    assert attempt(_proxied(), "admin2@example.com", PASSWORD).status_code == 200
+
+    for i in range(12):  # registration isn't capped site-wide either
+        r = _proxied().post(
+            f"{API}/auth/register",
+            json={"email": f"r{i}@example.com", "full_name": "R", "password": "Str0ngPassw0rd"},
+        )
+        assert r.status_code == 201
+
+
+def test_current_password_guesses_on_password_change_are_limited(make_user):
+    """A stolen session mustn't allow unlimited guesses at the current password
+    (which would let an attacker change it and lock the owner out)."""
+    make_user("amy@example.com")
+    c = _session("amy@example.com")
+    for i in range(5):
+        r = c.post(
+            f"{API}/users/me/password",
+            json={"current_password": f"wrong-guess-{i}", "new_password": "BrandNewPass99"},
+        )
+        assert r.status_code == 401
+    r = c.post(
+        f"{API}/users/me/password",
+        json={"current_password": PASSWORD, "new_password": "BrandNewPass99"},
+    )
+    assert r.status_code == 429

@@ -44,6 +44,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  experimental: {
+    // Keep in sync with MAX_PROXY_BODY_BYTES in src/proxy.ts (bodies over this are refused there).
+    proxyClientMaxBodySize: "11mb",
+  },
   partialPrefetching: true,
   // Small self-contained server for the Docker image (set in frontend/Dockerfile).
   // Off otherwise: `next start` and Vercel don't use it.

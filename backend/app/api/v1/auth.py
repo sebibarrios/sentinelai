@@ -41,10 +41,10 @@ def register(
     data: UserRegister, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> User:
     ip = rate_limit.client_ip(request)
-    limit = rate_limit.registrations_per_ip()
-    rate_limit.check(db, limit, ip)
-    # Count attempts, not just successes, so probing for taken emails is also limited.
-    rate_limit.hit(db, limit, ip)
+    if ip is not None:
+        # Count attempts, not just successes, so probing for taken emails is also limited.
+        rate_limit.reserve(db, rate_limit.registrations_per_ip(), ip)
+        db.commit()
 
     if db.scalar(select(User).where(User.email == data.email)):
         raise Conflict("An account with this email already exists")
@@ -68,22 +68,25 @@ def login(
     ip = rate_limit.client_ip(request)
     per_account = rate_limit.login_failures_per_account()
     per_ip = rate_limit.login_failures_per_ip()
-    # Checked before the password: during a lockout even the right password is refused,
-    # otherwise an attacker could keep guessing. Unknown emails are counted the same way
-    # as real ones, so lockouts don't reveal which accounts exist.
-    rate_limit.check(db, per_account, data.email)
-    rate_limit.check(db, per_ip, ip)
+    # Each attempt is counted *before* the password is checked, atomically with the
+    # limit check, and committed straight away. So simultaneous guesses can't all slip
+    # under the limit, and no lock is held during the slow password hash. During a
+    # lockout even the right password is refused. Unknown emails are counted exactly
+    # like real ones, so lockouts don't reveal which accounts exist.
+    rate_limit.reserve(db, per_account, data.email)
+    ip_hit = rate_limit.reserve(db, per_ip, ip) if ip is not None else None
+    rate_limit.prune(db)
+    db.commit()
 
     user = db.scalar(select(User).where(User.email == data.email))
     # verify_password runs even when the user is missing, so response time
     # doesn't reveal which emails are registered.
     valid = verify_password(data.password, user.password_hash if user else None)
     if not user or not valid or not user.is_active:
-        rate_limit.hit(db, per_account, data.email)
-        rate_limit.hit(db, per_ip, ip)
-        raise Unauthorized("Invalid email or password")
+        raise Unauthorized("Invalid email or password")  # the reservations stay counted
 
     rate_limit.clear(db, per_account, data.email)
+    rate_limit.release(db, ip_hit)
     user.last_login_at = utcnow()
     db.commit()
     set_session_cookie(response, user)

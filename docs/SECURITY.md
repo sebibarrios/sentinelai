@@ -27,8 +27,9 @@ Three inputs are treated as hostile:
 |---|---|---|---|
 | Password database leak | Argon2id hashing (memory-hard), never stored or logged in plain text | `core/security.py` | `test_auth.py` |
 | Session theft through XSS | Session JWT lives in an `httpOnly` cookie that JavaScript can't read; `Secure` in production | `api/v1/auth.py` | `test_register_creates_viewer_and_sets_httponly_cookie` |
-| Brute-force password guessing | 5 failures per account in 15 minutes locks sign-in; the lock is checked *before* the password, so even the right password is refused during it | `services/rate_limit.py`, `api/v1/auth.py` | `test_account_locks_after_five_failures_even_for_the_right_password`; e2e lockout test |
-| Password spraying (one IP, many accounts) | 20 failures per client IP in 15 minutes | same | `test_one_ip_spraying_many_accounts_is_blocked` |
+| Brute-force password guessing | 5 failures per account in 15 minutes locks sign-in; the lock is checked *before* the password, so even the right password is refused during it. Each attempt is counted atomically before the password is checked (a short PostgreSQL advisory lock, released before the slow hash), so simultaneous guesses can't slip past the limit | `services/rate_limit.py`, `api/v1/auth.py` | `test_account_locks_after_five_failures_even_for_the_right_password`, `test_simultaneous_guesses_cannot_exceed_the_account_limit`; e2e lockout test |
+| Password spraying (one IP, many accounts) | 20 failures per client IP in 15 minutes, when the web app forwards a trusted client IP. Without one, per-IP limits are off rather than applied to the web server's own address, which would let one attacker lock every visitor out | same, `core/proxy_auth.py` | `test_one_ip_spraying_many_accounts_is_blocked`, `test_without_a_forwarded_client_ip_one_attacker_cannot_lock_out_everyone` |
+| Guessing the current password with a stolen session | Password change allows 5 wrong current-password attempts per account in 15 minutes, counted the same way as sign-in | `api/v1/users.py` | `test_current_password_guesses_on_password_change_are_limited` |
 | Account enumeration | Identical error and timing for wrong password and unknown email (a dummy hash is verified when the user doesn't exist); unknown emails lock out exactly like real ones | `core/security.py`, `api/v1/auth.py` | `test_login_wrong_password_and_unknown_user_give_same_error`, `test_unknown_emails_lock_the_same_way_so_lockout_reveals_nothing` |
 | A stolen or copied cookie stays valid after logout | Each token carries the user's `session_version`; logout, password change, and deactivation bump it, so every existing token is rejected immediately | `api/deps.py` | `test_logout_revokes_a_copied_token`; e2e cookie-replay test |
 | Forged tokens (`alg: none`, wrong key) | Signature verified with a pinned algorithm; required claims enforced | `core/security.py` | `test_forged_algorithm_none_token_is_rejected`, `test_tampered_cookie_is_rejected` |
@@ -40,7 +41,7 @@ Three inputs are treated as hostile:
 |---|---|---|---|
 | Privilege escalation | Self-registration always creates a read-only viewer; only admins grant roles; admins can't demote themselves (no lockout of the last admin) | `api/v1/auth.py`, `api/v1/users.py` | `test_admin_can_promote_user_but_not_demote_self`; e2e "new accounts start with read-only access" |
 | Stale privileges | The user and role are reloaded from the database on every request, never trusted from the token | `api/deps.py` | `test_deactivation_takes_effect_immediately` |
-| Hidden buttons treated as security | Every route declares its minimum role on the server (`Viewer`/`Analyst`/`Admin`); the UI hides controls only for convenience | `api/deps.py`, every router | `test_viewer_can_read_but_not_write`; e2e role tests, which call the API directly |
+| Hidden buttons treated as security | Every protected route declares its minimum role on the server (`Viewer`/`Analyst`/`Admin`); the UI hides controls only for convenience | `api/deps.py`, every router | `test_viewer_can_read_but_not_write`; e2e role tests, which call the API directly |
 
 ### Web and API
 
@@ -58,7 +59,7 @@ Three inputs are treated as hostile:
 
 | Threat | Control | Code | Proven by |
 |---|---|---|---|
-| Malicious or oversized files | Extension allow-list, the extension must agree with the content, binary rejected, hard size cap enforced while streaming, row cap | `ingest/parser.py`, `api/v1/uploads.py` | `test_unsafe_or_mismatched_files_are_refused`, `test_oversized_upload_rejected` |
+| Malicious or oversized files | Extension allow-list, the extension must agree with the content, binary rejected, hard size cap enforced while streaming, row cap; the web proxy refuses bodies over 11 MB before buffering them, so over-limit uploads get a clear 413 rather than a truncated request | `ingest/parser.py`, `api/v1/uploads.py`, `frontend/src/proxy.ts` | `test_unsafe_or_mismatched_files_are_refused`, `test_oversized_upload_rejected`; e2e oversized-upload test |
 | Path traversal through filenames | The filename is display-only and never used as a path; files are never written to disk | `services/uploads.py` | `test_path_in_filename_is_ignored` |
 | A bad row poisoning the dataset | Every row is validated (IP formats, port ranges, category rules); bad rows are rejected with a reason, and the import is all-or-nothing in one transaction | `ingest/schema.py`, `services/uploads.py` | `test_bad_rows_are_rejected_with_reasons_not_fatal`, `test_failure_mid_pipeline_leaves_no_partial_data` |
 
@@ -74,7 +75,7 @@ Three inputs are treated as hostile:
 
 ### Supply chain and process
 
-- **CI** runs lint, migration drift checks, 148 backend tests with a 90% coverage floor, 18 browser tests, and a Docker Compose smoke test on every push.
+- **CI** runs lint, migration drift checks, 151 backend tests with a 90% coverage floor, 19 browser tests, and a Docker Compose smoke test on every push.
 - **CodeQL** scans Python and TypeScript on every push and weekly.
 - **Dependabot** opens weekly update PRs for pip, npm, GitHub Actions, and base images.
 - **Secrets** are kept out of the repository; `.env` is git-ignored, and the full history was scanned during the Phase 1–4 audit.
@@ -87,6 +88,6 @@ These are deliberate scope choices, not oversights:
 - **Logout ends all of a user's sessions,** not just the current one. A per-session table would allow "sign out this device only", at the cost of more state.
 - **Registration still says when an email is taken.** It's rate-limited per IP; fully preventing this needs email verification, which is out of scope for a demo with no mail service.
 - **Account lockout can be used to annoy a user** by failing logins on their email. That's the standard tradeoff for lockouts; the lock is short (15 minutes) and IP limits slow the attacker.
-- **The per-IP limit needs a trusted client-IP source.** It's only as accurate as the header named in `CLIENT_IP_HEADER` on the web server (set per hosting provider). Without it, the per-account lock still protects every account.
+- **The per-IP limits need a trusted client-IP source.** They're only as accurate as the header named in `CLIENT_IP_HEADER` on the web server (set per hosting provider). Without it they're switched off (the API logs a warning once), and the per-account lock still protects every account.
 - **Synthetic threat intelligence.** The known-bad IP list is a fixed demo list, not a live feed.
 - **No MFA.** It would be the next addition for a production deployment.

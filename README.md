@@ -79,6 +79,6 @@ Set these on the hosting platform, never in the repository. The backend refuses 
 | `PROXY_SHARED_SECRET` | API **and** web | Same long random value on both; the API refuses requests that don't come through the web app |
 | `OPENAI_API_KEY` | API | Enables the AI analyst (optional) |
 | `BACKEND_URL` | web (build time) | The API's URL; Next.js forwards `/api/*` there |
-| `CLIENT_IP_HEADER` | web | Header your host sets to the visitor's IP (e.g. `x-real-ip` on Vercel), used for per-IP rate limits |
+| `CLIENT_IP_HEADER` | web | Header your host sets to the visitor's IP (e.g. `x-real-ip` on Vercel), used for per-IP rate limits (off without it; per-account limits always apply) |
 
 Generate secrets with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.

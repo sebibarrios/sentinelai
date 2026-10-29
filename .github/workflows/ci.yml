@@ -57,7 +57,11 @@ jobs:
           alembic upgrade head
           alembic check
       - name: Tests with coverage (fails below 90%)
-        run: pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=90
+        # The notice puts the result line (counts, coverage) on the run's summary page.
+        run: |
+          set -o pipefail
+          pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=90 | tee pytest.out
+          echo "::notice title=Backend tests::$(grep -E '^TOTAL' pytest.out | awk '{print "coverage " $NF}'), $(tail -n 1 pytest.out | tr -d '=')"
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -118,7 +122,10 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - name: Run Playwright (starts API + web, resets the e2e database)
-        run: npm run test:e2e
+        run: |
+          set -o pipefail
+          npm run test:e2e | tee e2e.out
+          echo "::notice title=Browser tests::$(grep -E '^ +[0-9]+ (passed|failed|flaky)' e2e.out | xargs)"
         working-directory: frontend
         env:
           PYTHON: python

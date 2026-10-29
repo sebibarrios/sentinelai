@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -63,8 +63,29 @@ def registrations_per_ip() -> Limit:
 client_ip = _client_ip
 
 
-def check(db: Session, limit: Limit, key: str) -> None:
-    """Raise 429 if the limit is already reached. Doesn't record anything."""
+def password_change_failures_per_user() -> Limit:
+    s = get_settings()
+    return Limit(
+        "password_change_fail",
+        s.login_max_failures_per_account,
+        timedelta(minutes=s.login_lockout_minutes),
+        "Too many incorrect current-password attempts.",
+    )
+
+
+def _lock(db: Session, limit: Limit, key: str) -> None:
+    """Serialize work on one (scope, key) until the transaction ends.
+
+    pg_advisory_xact_lock is released automatically on commit or rollback, so it's held
+    only for the brief count-and-insert in reserve(), never during password hashing.
+    """
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+        {"k": f"{limit.scope}:{key}"},
+    )
+
+
+def _check(db: Session, limit: Limit, key: str) -> None:
     since = utcnow() - limit.window
     count, oldest = db.execute(
         select(func.count(), func.min(RateLimitHit.created_at)).where(
@@ -82,14 +103,33 @@ def check(db: Session, limit: Limit, key: str) -> None:
         )
 
 
-def hit(db: Session, limit: Limit, key: str) -> None:
-    """Record one hit and prune expired rows. Commits, so the hit survives a later error."""
-    db.add(RateLimitHit(scope=limit.scope, key=key))
-    db.execute(delete(RateLimitHit).where(RateLimitHit.created_at < utcnow() - RETENTION))
-    db.commit()
+def reserve(db: Session, limit: Limit, key: str) -> int:
+    """Atomically check the limit and count this attempt *before* doing the work.
+
+    Counting up front (rather than after a failure) means attempts still in flight
+    count too, so simultaneous requests can't all slip under the limit. Call release()
+    if the attempt succeeds. The caller commits; that also releases the lock.
+    Raises 429 if the limit is already reached.
+    """
+    _lock(db, limit, key)
+    _check(db, limit, key)
+    hit = RateLimitHit(scope=limit.scope, key=key)
+    db.add(hit)
+    db.flush()
+    return hit.id
+
+
+def release(db: Session, hit_id: int | None) -> None:
+    """Uncount a reserved attempt that turned out to be legitimate."""
+    if hit_id is not None:
+        db.execute(delete(RateLimitHit).where(RateLimitHit.id == hit_id))
 
 
 def clear(db: Session, limit: Limit, key: str) -> None:
     db.execute(
         delete(RateLimitHit).where(RateLimitHit.scope == limit.scope, RateLimitHit.key == key)
     )
+
+
+def prune(db: Session) -> None:
+    db.execute(delete(RateLimitHit).where(RateLimitHit.created_at < utcnow() - RETENTION))

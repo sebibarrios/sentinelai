@@ -77,6 +77,25 @@ test.describe("security controls", () => {
     expect((await r.json()).error.code).toBe("csrf_header_missing");
   });
 
+  test("oversized uploads get a clear 413 through the web app, not a server error", async ({ page }) => {
+    await loginAndWait(page, "analyst");
+    const upload = (megabytes: number) =>
+      page.request.post("/api/v1/uploads", {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        multipart: {
+          file: { name: "big.csv", mimeType: "text/csv", buffer: Buffer.alloc(megabytes * 1024 * 1024, "a") },
+        },
+      });
+    // Refused by the API's exact 10 MB limit, after passing the proxy intact.
+    const overApiLimit = await upload(10.5);
+    expect(overApiLimit.status()).toBe(413);
+    expect((await overApiLimit.json()).error.code).toBe("payload_too_large");
+    // Refused by the web proxy before it buffers the body.
+    const huge = await upload(12);
+    expect(huge.status()).toBe(413);
+    expect((await huge.json()).error.code).toBe("payload_too_large");
+  });
+
   test("layouts fit a phone screen without sideways scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAndWait(page, "analyst");

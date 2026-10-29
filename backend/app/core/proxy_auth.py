@@ -10,12 +10,15 @@ The health check stays open so the hosting provider can monitor the service.
 
 import hmac
 import ipaddress
+import logging
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import get_settings
+
+logger = logging.getLogger("sentinelai.proxy_auth")
 
 SECRET_HEADER = "x-sentinel-proxy-secret"  # noqa: S105 - a header name, not a secret
 CLIENT_IP_HEADER = "x-sentinel-client-ip"
@@ -30,15 +33,33 @@ def has_valid_proxy_secret(request: Request) -> bool:
     return hmac.compare_digest(supplied.encode(), secret.encode())  # constant-time
 
 
-def client_ip(request: Request) -> str:
-    """The real client IP if the frontend vouched for it, else the socket peer."""
+_warned_missing_ip = False
+
+
+def client_ip(request: Request) -> str | None:
+    """The visitor's IP for per-IP rate limits, or None if it isn't known.
+
+    - Frontend vouched (valid secret) and forwarded an IP: that IP.
+    - Frontend vouched but forwarded no IP (CLIENT_IP_HEADER not configured on the web
+      server): None. The socket address would be the frontend's own IP, shared by every
+      visitor, so a per-IP limit on it would let one attacker lock out the whole site.
+      Per-account limits still apply.
+    - No proxy secret configured (local development): the socket address.
+    """
+    global _warned_missing_ip
     if has_valid_proxy_secret(request):
         claimed = request.headers.get(CLIENT_IP_HEADER, "").strip()
         try:
             return str(ipaddress.ip_address(claimed))
         except ValueError:
-            pass
-    return request.client.host if request.client else "unknown"
+            if not _warned_missing_ip:
+                logger.warning(
+                    "No client IP forwarded by the web app; per-IP rate limits are off. "
+                    "Set CLIENT_IP_HEADER on the web server to enable them."
+                )
+                _warned_missing_ip = True
+            return None
+    return request.client.host if request.client else None
 
 
 class RequireProxySecretMiddleware:
