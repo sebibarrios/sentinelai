@@ -62,7 +62,7 @@ jobs:
           set -o pipefail
           pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=90 | tee pytest.out
           echo "::notice title=Backend tests::$(grep -E '^TOTAL' pytest.out | awk '{print "coverage " $NF}'), $(tail -n 1 pytest.out | tr -d '=')"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-coverage
@@ -130,7 +130,7 @@ jobs:
         env:
           PYTHON: python
           NEXT_TELEMETRY_DISABLED: "1"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
