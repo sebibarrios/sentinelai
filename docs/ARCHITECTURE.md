@@ -7,8 +7,8 @@ This document is the design contract for SentinelAI. It defines the system shape
 ```mermaid
 flowchart LR
     U[Browser] --> FE["Next.js frontend<br/>(Vercel)"]
-    FE -- "/api/* rewrite<br/>(same-origin cookies)" --> BE["FastAPI backend<br/>(Render / Railway)"]
-    BE --> DB[(PostgreSQL)]
+    FE -- "/api/* rewrite<br/>(same-origin cookies)" --> BE["FastAPI backend<br/>(Render)"]
+    BE --> DB[("PostgreSQL<br/>(Neon)")]
     BE -- "server-side only" --> OAI[OpenAI API]
 
     subgraph BE_INTERNAL[Backend modules]

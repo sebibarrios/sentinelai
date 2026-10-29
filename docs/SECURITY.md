@@ -75,7 +75,7 @@ Three inputs are treated as hostile:
 
 ### Supply chain and process
 
-- **CI** runs lint, migration drift checks, 151 backend tests with a 90% coverage floor, 19 browser tests, and a Docker Compose smoke test on every push.
+- **CI** runs lint, migration drift checks, 153 backend tests with a 90% coverage floor, 19 browser tests, and a Docker Compose smoke test on every push.
 - **CodeQL** scans Python and TypeScript on every push and weekly.
 - **Dependabot** opens weekly update PRs for pip, npm, GitHub Actions, and base images.
 - **Secrets** are kept out of the repository; `.env` is git-ignored, and the full history was scanned during the Phase 1–4 audit.
