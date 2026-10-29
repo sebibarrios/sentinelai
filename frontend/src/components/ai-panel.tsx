@@ -82,8 +82,8 @@ export function AiPanel({
           </>
         ) : aiEnabled === false ? (
           <p className="text-sm text-muted-foreground">
-            AI analysis isn&apos;t configured on this server. Set OPENAI_API_KEY on the backend to
-            enable it.
+            AI analysis is turned off on this server. The verified finding and its evidence are
+            complete without it.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">

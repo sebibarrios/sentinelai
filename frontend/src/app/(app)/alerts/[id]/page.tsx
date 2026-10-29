@@ -51,8 +51,11 @@ export default function AlertPage() {
   );
 }
 
+/** "failure_ips" -> "Failure IPs": evidence keys come straight from detection rules. */
 function label(key: string) {
-  return capitalize(key.replaceAll("_", " "));
+  return capitalize(key.replaceAll("_", " ")).replace(/\bips?\b/gi, (m) =>
+    m.toLowerCase() === "ips" ? "IPs" : "IP",
+  );
 }
 
 function formatValue(value: unknown): string {
